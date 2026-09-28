@@ -1,0 +1,120 @@
+@import 'tailwindcss';
+
+/**
+ * Paleta y tipografia del briefing. Tailwind v4 genera las utilidades a partir de
+ * estos tokens: `bg-jade`, `text-grafito`, `font-titulo`, etc.
+ */
+@theme {
+  --color-jade: #2d5a43;
+  --color-jade-hondo: #1f4230;
+  --color-jade-claro: #3d7259;
+  --color-salvia: #7e9987;
+  --color-salvia-claro: #a9bdb0;
+  --color-salvia-niebla: #e7ede9;
+  --color-lino: #f8f6f0;
+  --color-lino-hondo: #efebe0;
+  --color-blanco: #ffffff;
+  --color-grafito: #242926;
+  --color-grafito-suave: #5c635e;
+  --color-grafito-tenue: #8b918d;
+
+  /* Reservado por el briefing: SOLO cancelaciones y alertas puntuales.
+     `tests/unit/arquitectura.test.ts` verifica que no se use en otro lado. */
+  --color-terracota: #b4533c;
+  --color-terracota-tenue: #f7ece9;
+
+  --font-titulo: 'Cinzel', 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --font-texto: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--color-lino);
+    color: var(--color-grafito);
+    font-family: var(--font-texto);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    /* Deliberadamente SIN `overflow-x: hidden`: esconder el desborde haria pasar el
+       criterio CA-07 sin arreglarlo. Si una pantalla desborda, el E2E debe fallar. */
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-titulo);
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    line-height: 1.2;
+    text-wrap: balance;
+  }
+
+  img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  /* Objetivo tactil minimo: 44px. La mayoria entra desde el telefono. */
+  button,
+  a[role='button'],
+  [type='button'],
+  [type='submit'] {
+    min-height: 44px;
+    font-family: inherit;
+  }
+
+  input,
+  select,
+  textarea {
+    font-family: inherit;
+    /* 16px evita que iOS haga zoom al enfocar un campo. */
+    font-size: 16px;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-jade);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer utilities {
+  /* Tira de dias del calendario: desplazamiento horizontal contenido dentro de
+     su caja, para que nunca empuje el ancho del documento. */
+  .tira-scroll {
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+  .tira-scroll > * {
+    scroll-snap-align: start;
+  }
+
+  .sombra-tarjeta {
+    box-shadow:
+      0 1px 2px rgba(36, 41, 38, 0.04),
+      0 8px 24px -12px rgba(36, 41, 38, 0.14);
+  }
+}

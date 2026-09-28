@@ -1,0 +1,12 @@
+node_modules
+dist
+.bdd-gen
+test-results
+playwright-report
+blob-report
+*.local
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.tsbuildinfo

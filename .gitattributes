@@ -1,0 +1,4 @@
+# Normaliza los finales de linea: el repo guarda LF, el checkout usa lo nativo.
+* text=auto eol=lf
+*.jpg binary
+*.png binary
