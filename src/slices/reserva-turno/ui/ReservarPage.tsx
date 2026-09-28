@@ -8,29 +8,29 @@
 import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useAgenda } from '@/app/agenda-context'
-import {
-  Aviso,
-  Boton,
-  Campo,
-  Contenedor,
-  Entrada,
-  Seleccion,
-  Sello,
-  Tarjeta,
-} from '@/shared/ui/componentes'
-import { diasDeAgenda, FechaAgenda, slotsDelDia, type Reserva } from '@/slices/agenda'
-import { duracionLegible, nombreDeTerapia, precioEnGuaranies, TERAPIAS } from '@/slices/catalogo-terapias'
-import { datosDelTurno, enlaceDeWhatsApp } from '@/slices/difusion-whatsapp'
+import { migasDePan, todosLosServicios } from '@/app/datos-estructurados'
+import { Aviso, Boton, Campo, Contenedor, Entrada, Sello, Tarjeta } from '@/shared/ui/componentes'
+import { MigasDePan } from '@/shared/ui/navegacion'
+import { useSeo } from '@/shared/seo/useSeo'
 import { esOk } from '@/shared/domain/result'
+import { diasDeAgenda, FechaAgenda, slotsDelDia, type Reserva } from '@/slices/agenda'
+import { nombreDeTerapia, TERAPIAS } from '@/slices/catalogo-terapias'
+import { datosDelTurno, enlaceDeWhatsApp } from '@/slices/difusion-whatsapp'
 import { reservarTurno } from '../application/reservar-turno'
 import {
   FORMULARIO_VACIO,
+  type CampoReserva,
   type EntradaFormulario,
   type ErroresFormulario,
 } from '../domain/formulario-reserva'
 import { GrillaDeHorarios, TiraDeDias } from './SelectorDeAgenda'
+import { BarraDeResumen, SelectorDeTerapia } from './SelectorDeTerapia'
 
 const IDS_TERAPIAS = TERAPIAS.map((t) => t.id)
+const MIGAS = [{ nombre: 'Reservar', ruta: '/reservar' }]
+
+/** Orden visual del formulario: el foco va al primer error que se ve, no al primero del objeto. */
+const ORDEN_CAMPOS: readonly CampoReserva[] = ['terapia', 'fecha', 'hora', 'nombre', 'celular']
 
 export function ReservarPage() {
   const { agenda: repo, reloj, revision, refrescar } = useAgenda()
@@ -44,13 +44,21 @@ export function ReservarPage() {
   const [errorAgenda, setErrorAgenda] = useState<string | null>(null)
   const [confirmada, setConfirmada] = useState<Reserva | null>(null)
 
+  const datosEstructurados = useMemo(() => [...todosLosServicios(), migasDePan(MIGAS)], [])
+
+  useSeo({
+    titulo: 'Reservar turno de acupuntura y terapias orientales | Centro Qi Asunción',
+    descripcion:
+      'Reservá tu sesión en el Centro Qi de Villa Morra, Asunción: elegí terapia, día y horario, y ' +
+      'confirmá en el momento. Sin llamadas ni esperas.',
+    ruta: '/reservar',
+    datosEstructurados,
+  })
+
   // El "ahora" se fija por ciclo de revision y no por render: un Date nuevo en cada
   // render invalidaria todos los useMemo y haria parpadear la grilla. La guarda real
   // contra horarios pasados vive en el agregado, que revalida al confirmar.
   const ahora = useMemo(() => reloj.ahora(), [reloj, revision])
-
-  // `revision` fuerza la relectura después de cada escritura: es lo que hace que
-  // el horario recién tomado desaparezca de la grilla al instante (criterio CA-02).
   const dias = useMemo(() => diasDeAgenda(repo, ahora), [repo, revision, ahora])
 
   /**
@@ -82,6 +90,27 @@ export function ReservarPage() {
     })
   }
 
+  /**
+   * Lleva la vista al primer campo con problema y le da el foco.
+   * Sin esto, en el celular los avisos pueden quedar fuera de pantalla y el
+   * formulario parece no responder al tocar "Confirmar".
+   */
+  const enfocarPrimerError = (erroresNuevos: ErroresFormulario) => {
+    const primero = ORDEN_CAMPOS.find((c) => erroresNuevos[c] !== undefined)
+    if (primero === undefined) return
+
+    requestAnimationFrame(() => {
+      document.getElementById(`grupo-${primero}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      })
+      const control = document.getElementById(primero)
+      if (control instanceof HTMLInputElement && control.type !== 'hidden') {
+        control.focus({ preventScroll: true })
+      }
+    })
+  }
+
   const confirmar = () => {
     const resultado = reservarTurno(repo, reloj, { ...entrada, fechaIso: fechaElegida }, IDS_TERAPIAS)
 
@@ -97,10 +126,12 @@ export function ReservarPage() {
     if (resultado.error.tipo === 'formulario') {
       setErrores(resultado.error.errores)
       setErrorAgenda(null)
+      enfocarPrimerError(resultado.error.errores)
     } else {
       setErrores({})
       setErrorAgenda(resultado.error.error.mensaje)
       refrescar() // alguien se adelantó: reflejamos la agenda real
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }
 
@@ -115,10 +146,12 @@ export function ReservarPage() {
   }
 
   const terapia = TERAPIAS.find((t) => t.id === entrada.terapiaId)
+  const diaElegido = dias.find((d) => d.fecha.iso === fechaElegida)
 
   return (
     <Contenedor className="py-8">
-      <h1 className="text-3xl text-jade">Reservá tu sesión</h1>
+      <MigasDePan tramos={MIGAS} />
+      <h1 className="mt-4 text-3xl text-jade">Reservá tu sesión</h1>
       <p className="mt-2 max-w-xl text-grafito-suave">
         Elegí terapia, día y horario. Te confirmamos en el momento, sin esperar respuesta.
       </p>
@@ -139,36 +172,24 @@ export function ReservarPage() {
         }}
         className="mt-6 flex flex-col gap-6"
       >
-        <Tarjeta className="p-5">
-          <Campo
-            id="terapia"
-            etiqueta="1. Terapia"
-            obligatorio
-            error={errores.terapia}
-          >
-            <Seleccion
-              id="terapia"
-              name="terapia"
-              value={entrada.terapiaId}
+        <Tarjeta className="p-5" id="grupo-terapia">
+          <Campo id="terapia" etiqueta="1. Terapia" obligatorio error={errores.terapia}>
+            <input type="hidden" id="terapia" name="terapia" value={entrada.terapiaId} readOnly />
+            <SelectorDeTerapia
+              seleccionada={entrada.terapiaId}
               hayError={errores.terapia !== undefined}
-              onChange={(e) => actualizar({ terapiaId: e.target.value })}
-              aria-describedby={errores.terapia !== undefined ? 'terapia-error' : undefined}
-            >
-              <option value="">Elegí una terapia</option>
-              {TERAPIAS.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.nombre} · {duracionLegible(t.duracionMinutos)} · {precioEnGuaranies(t.precioGs)}
-                </option>
-              ))}
-            </Seleccion>
+              onElegir={(terapiaId) => actualizar({ terapiaId })}
+            />
           </Campo>
 
           {terapia !== undefined && (
-            <p className="mt-3 text-sm text-grafito-suave">{terapia.resumen}</p>
+            <p className="mt-3 rounded-lg bg-lino px-3 py-2 text-sm text-grafito-suave">
+              {terapia.resumen}
+            </p>
           )}
         </Tarjeta>
 
-        <Tarjeta className="p-5">
+        <Tarjeta className="p-5" id="grupo-fecha">
           <Campo id="fecha" etiqueta="2. Día" obligatorio error={errores.fecha}>
             <input type="hidden" id="fecha" name="fecha" value={fechaElegida} readOnly />
             <TiraDeDias
@@ -178,7 +199,7 @@ export function ReservarPage() {
             />
           </Campo>
 
-          <div className="mt-5">
+          <div className="mt-5" id="grupo-hora">
             <Campo id="hora" etiqueta="3. Horario" obligatorio error={errores.hora}>
               <input type="hidden" id="hora" name="hora" value={entrada.horaTexto} readOnly />
               <GrillaDeHorarios
@@ -194,42 +215,46 @@ export function ReservarPage() {
         <Tarjeta className="flex flex-col gap-5 p-5">
           <h2 className="text-lg text-jade">4. Tus datos</h2>
 
-          <Campo id="nombre" etiqueta="Nombre y apellido" obligatorio error={errores.nombre}>
-            <Entrada
-              id="nombre"
-              name="nombre"
-              type="text"
-              autoComplete="name"
-              placeholder="Lucía Benítez"
-              value={entrada.nombre}
-              hayError={errores.nombre !== undefined}
-              onChange={(e) => actualizar({ nombre: e.target.value })}
-              aria-describedby={errores.nombre !== undefined ? 'nombre-error' : undefined}
-            />
-          </Campo>
+          <div id="grupo-nombre">
+            <Campo id="nombre" etiqueta="Nombre y apellido" obligatorio error={errores.nombre}>
+              <Entrada
+                id="nombre"
+                name="nombre"
+                type="text"
+                autoComplete="name"
+                placeholder="Lucía Benítez"
+                value={entrada.nombre}
+                hayError={errores.nombre !== undefined}
+                onChange={(e) => actualizar({ nombre: e.target.value })}
+                aria-describedby={errores.nombre !== undefined ? 'nombre-error' : undefined}
+              />
+            </Campo>
+          </div>
 
-          <Campo
-            id="celular"
-            etiqueta="Celular"
-            obligatorio
-            ayuda="Te escribimos por acá solo si necesitamos reprogramar."
-            error={errores.celular}
-          >
-            <Entrada
+          <div id="grupo-celular">
+            <Campo
               id="celular"
-              name="celular"
-              type="tel"
-              inputMode="tel"
-              autoComplete="tel"
-              placeholder="0981 456 789"
-              value={entrada.celular}
-              hayError={errores.celular !== undefined}
-              onChange={(e) => actualizar({ celular: e.target.value })}
-              aria-describedby={
-                errores.celular !== undefined ? 'celular-error celular-ayuda' : 'celular-ayuda'
-              }
-            />
-          </Campo>
+              etiqueta="Celular"
+              obligatorio
+              ayuda="Te escribimos por acá solo si necesitamos reprogramar."
+              error={errores.celular}
+            >
+              <Entrada
+                id="celular"
+                name="celular"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                placeholder="0981 456 789"
+                value={entrada.celular}
+                hayError={errores.celular !== undefined}
+                onChange={(e) => actualizar({ celular: e.target.value })}
+                aria-describedby={
+                  errores.celular !== undefined ? 'celular-error celular-ayuda' : 'celular-ayuda'
+                }
+              />
+            </Campo>
+          </div>
 
           <Campo id="motivo" etiqueta="¿Qué te trae? (opcional)">
             <textarea
@@ -245,10 +270,6 @@ export function ReservarPage() {
           </Campo>
         </Tarjeta>
 
-        <Boton type="submit" anchoCompleto data-testid="confirmar-reserva">
-          Confirmar turno
-        </Boton>
-
         <p className="text-center text-xs text-grafito-tenue">
           Al confirmar aceptás nuestro{' '}
           <Link to="/legal/aviso" className="underline">
@@ -260,6 +281,13 @@ export function ReservarPage() {
           </Link>
           .
         </p>
+
+        <BarraDeResumen
+          terapia={terapia?.nombre ?? ''}
+          dia={diaElegido?.fecha.etiquetaCorta ?? ''}
+          hora={entrada.horaTexto}
+          onConfirmar={confirmar}
+        />
       </form>
     </Contenedor>
   )
@@ -268,6 +296,13 @@ export function ReservarPage() {
 function Confirmacion({ reserva, onReservarOtro }: { reserva: Reserva; onReservarOtro: () => void }) {
   const nombreTerapia = nombreDeTerapia(reserva.terapiaId)
   const enlace = enlaceDeWhatsApp(datosDelTurno(reserva, nombreTerapia))
+
+  useSeo({
+    titulo: 'Turno confirmado | Centro Qi',
+    descripcion: 'Tu turno en el Centro Qi quedó confirmado.',
+    ruta: '/reservar',
+    noIndexar: true,
+  })
 
   return (
     <Contenedor className="py-10">
@@ -301,7 +336,7 @@ function Confirmacion({ reserva, onReservarOtro }: { reserva: Reserva; onReserva
             target="_blank"
             rel="noreferrer"
             data-testid="enlace-whatsapp"
-            className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-jade px-5 py-3 text-[0.95rem] font-semibold text-blanco transition-colors hover:bg-jade-hondo"
+            className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-jade px-5 py-3 text-[0.95rem] font-semibold text-blanco transition-colors hover:bg-jade-hondo"
           >
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true">
               <path d="M12.04 2c-5.5 0-9.96 4.46-9.96 9.96 0 1.76.46 3.48 1.34 5L2 22l5.17-1.35a9.93 9.93 0 0 0 4.87 1.24c5.5 0 9.96-4.46 9.96-9.96S17.54 2 12.04 2Zm5.8 14.06c-.24.68-1.42 1.32-1.95 1.36-.5.04-.98.22-3.3-.69-2.77-1.09-4.53-3.92-4.67-4.1-.13-.18-1.11-1.48-1.11-2.82 0-1.34.7-2 .95-2.27a1 1 0 0 1 .72-.34h.52c.16 0 .39-.06.6.46l.83 2c.07.14.11.3.02.48l-.28.42c-.09.13-.2.27-.09.46.11.2.5.82 1.07 1.33.73.65 1.35.86 1.54.95.19.1.3.08.42-.05l.6-.7c.15-.19.29-.15.48-.08l1.88.89c.2.09.32.14.37.21.05.08.05.45-.19 1.13Z" />
@@ -311,7 +346,7 @@ function Confirmacion({ reserva, onReservarOtro }: { reserva: Reserva; onReserva
 
           <Link
             to="/mi-turno"
-            className="inline-flex min-h-[44px] w-full items-center justify-center rounded-xl border border-salvia-claro bg-blanco px-5 py-3 text-[0.95rem] font-semibold text-jade hover:border-jade"
+            className="inline-flex min-h-[48px] w-full items-center justify-center rounded-xl border border-salvia-claro bg-blanco px-5 py-3 text-[0.95rem] font-semibold text-jade hover:border-jade"
           >
             Ver o cancelar mi turno
           </Link>

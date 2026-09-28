@@ -12,6 +12,7 @@ import { cx } from '@/shared/ui/cx'
 import { Aviso, Boton, Contenedor, Entrada, Sello, SinResultados, Tarjeta } from '@/shared/ui/componentes'
 import { diasDeAgenda, FechaAgenda, primerDiaConLugar, slotsDelDia, type Reserva } from '@/slices/agenda'
 import { buscarTerapia, nombreDeTerapia, precioEnGuaranies } from '@/slices/catalogo-terapias'
+import { useSeo } from '@/shared/seo/useSeo'
 import { PuertaDeAcceso } from '@/slices/admin-acceso/ui/PuertaDeAcceso'
 import {
   bloquearHorario,
@@ -24,6 +25,13 @@ import {
 const precioDe = (terapiaId: string): number => buscarTerapia(terapiaId)?.precioGs ?? 0
 
 export function AdminPage() {
+  useSeo({
+    titulo: 'Panel del centro | Centro Qi',
+    descripcion: 'Agenda interna del Centro Qi.',
+    ruta: '/admin',
+    noIndexar: true,
+  })
+
   return (
     <PuertaDeAcceso>
       <PanelDeAgenda />

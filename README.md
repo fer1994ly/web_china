@@ -31,10 +31,12 @@ npm run preview      # http://localhost:4173
 | Comando | Qué hace |
 |---|---|
 | `npm run dev` | Servidor de desarrollo |
-| `npm run build` | Chequeo de tipos + build de producción |
-| `npm run test` | Vitest: dominio, aplicación, infraestructura y reglas de arquitectura |
-| `npm run test:e2e` | Playwright: los escenarios Gherkin, a 360px |
+| `npm run build` | Tipos + build + `sitemap.xml`/`robots.txt` + prerenderizado |
+| `npm run build:spa` | Solo el bundle, sin SEO ni prerenderizado (iteración rápida) |
+| `npm run test` | Vitest: dominio, aplicación, infraestructura, arquitectura y SEO |
+| `npm run test:e2e` | Playwright: los escenarios Gherkin, a 360px por defecto |
 | `npm run test:e2e:ui` | Lo mismo, en modo interactivo |
+| `npm run csp` | Levanta `dist/` con las cabeceras de producción y comprueba que arranque |
 | `npm run typecheck` | Solo TypeScript |
 | `npm run lint` | oxlint |
 | **`npm run verify`** | **Todo junto: la puerta de entrega** |
@@ -143,6 +145,74 @@ esquema: la app vuelve a sembrar en lugar de mostrar una pantalla en blanco.
 
 ---
 
+## SEO
+
+Una SPA sirve `<div id="root"></div>` vacío. Google sabe ejecutar JavaScript, pero lo hace
+tarde y no siempre; **WhatsApp, Facebook y la mayoría de los lectores de enlaces no lo ejecutan
+nunca**. En Paraguay, donde casi todo se comparte por WhatsApp, eso significa una vista previa
+en blanco. Por eso el build no termina en el bundle.
+
+| Pieza | Dónde |
+|---|---|
+| Título, descripción, canónica y `robots` por ruta | `src/shared/seo/useSeo.ts` |
+| Open Graph y Twitter Card | idem — es lo que se ve al compartir el enlace |
+| Datos estructurados schema.org | `src/app/datos-estructurados.ts` |
+| Inventario de rutas | `src/app/rutas.ts` — fuente única |
+| `sitemap.xml` y `robots.txt` | `scripts/seo.mjs`, generados en cada build |
+| Prerenderizado a HTML estático | `scripts/prerender.mjs` |
+
+**Datos estructurados publicados**: `MedicalBusiness` (dirección, teléfono, horarios derivados
+del dominio y catálogo con precios en guaraníes), `WebSite`, un `Service` por terapia,
+`BreadcrumbList` y `FAQPage`. Esto es lo que convierte un resultado de búsqueda en una ficha con
+horarios y precios en vez de dos líneas de texto.
+
+**Qué se prerenderiza y qué no.** Se genera HTML estático para `/`, `/terapias` y las dos
+páginas legales. **`/reservar` no se prerenderiza a propósito**: su contenido depende del día, y
+un HTML congelado le mostraría al visitante, por un instante, horarios que ya no existen.
+`/mi-turno` y `/admin` quedan fuera de los buscadores con `noindex` y `Disallow`.
+
+El inventario de `src/app/rutas.ts` lo consumen el sitemap y el prerenderizador, así que es
+imposible agregar una página y que quede fuera del sitemap, o que una privada entre en él.
+
+### Configurar el dominio
+
+El dominio real se pasa por variable de entorno. Sin ella se usa `https://centroqi.com.py`:
+
+```bash
+VITE_SITE_URL=https://tu-dominio.com npm run build
+```
+
+En Netlify se configura en **Site settings → Environment variables**.
+
+---
+
+## Desplegar en Netlify
+
+El repositorio trae `netlify.toml` listo. Desde Netlify:
+
+1. **Add new site → Import an existing project → GitHub** y elegí `web_china`.
+2. No hay nada que configurar a mano: el `netlify.toml` ya define el comando de build,
+   la carpeta a publicar, las redirecciones y las cabeceras.
+3. En **Environment variables**, agregá `VITE_SITE_URL` con la URL definitiva del sitio
+   (por ejemplo `https://centroqi.netlify.app`). Sin esto, la canónica y las etiquetas
+   Open Graph apuntan al dominio por defecto.
+4. **Deploy**.
+
+Qué resuelve el `netlify.toml`:
+
+- **Build**: instala Chromium antes de compilar, porque el prerenderizador lo necesita.
+- **Redirecciones**: `/* → /index.html` con estado 200. Netlify sirve primero los archivos
+  estáticos, así que las rutas prerenderizadas ganan sobre esta regla; solo cae acá lo que no
+  tiene HTML propio.
+- **Cabeceras**: `Content-Security-Policy`, `X-Frame-Options`, `Referrer-Policy` y
+  `Permissions-Policy`, más caché inmutable para los assets con hash y revalidación para el HTML.
+
+`npm run csp` levanta `dist/` con esas mismas cabeceras y comprueba que las cinco rutas
+arranquen sin bloqueos. Corre dentro de `npm run verify`, porque una CSP demasiado estricta no
+falla en el build ni en los tests: falla en producción, con pantalla en blanco.
+
+---
+
 ## Criterios de aceptación
 
 Cada criterio tiene un escenario Gherkin ejecutable. `npm run verify` los corre todos.
@@ -211,4 +281,4 @@ alerta, `npm run verify` falla.
 ## Stack
 
 React 19 · TypeScript (modo estricto) · Tailwind CSS v4 · Vite · React Router ·
-Vitest · Playwright + playwright-bdd · localStorage
+Vitest · Playwright + playwright-bdd · localStorage · Netlify

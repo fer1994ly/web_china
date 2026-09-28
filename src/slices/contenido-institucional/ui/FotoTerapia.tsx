@@ -9,7 +9,16 @@ import type { Terapia } from '@/slices/catalogo-terapias'
  * en lugar de un cuadro roto se dibuja un motivo en la paleta del centro. Nunca un
  * placeholder gris generico: el briefing pide justamente evitar eso.
  */
-export function FotoTerapia({ terapia, className }: { terapia: Terapia; className?: string }) {
+export function FotoTerapia({
+  terapia,
+  className,
+  prioridad = false,
+}: {
+  terapia: Terapia
+  className?: string
+  /** La imagen visible al abrir la pagina: se carga de inmediato, no en diferido. */
+  prioridad?: boolean
+}) {
   const [fallo, setFallo] = useState(false)
 
   if (fallo) {
@@ -43,8 +52,9 @@ export function FotoTerapia({ terapia, className }: { terapia: Terapia; classNam
     <img
       src={terapia.imagen}
       alt={terapia.imagenAlt}
-      loading="lazy"
-      decoding="async"
+      loading={prioridad ? 'eager' : 'lazy'}
+      decoding={prioridad ? 'sync' : 'async'}
+      fetchPriority={prioridad ? 'high' : 'auto'}
       onError={() => setFallo(true)}
       className={cx('object-cover', className)}
     />

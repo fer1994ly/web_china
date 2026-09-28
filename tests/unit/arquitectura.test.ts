@@ -169,6 +169,9 @@ describe('Paleta: el terracota está reservado', () => {
     'shared/ui/componentes.tsx', // Aviso de alerta, botón de peligro, asterisco de campo obligatorio
     'slices/cancelacion-turno/ui/MiTurnoPage.tsx',
     'slices/admin-agenda/ui/AdminPage.tsx', // bloqueos y cancelaciones desde el panel
+    // Borde de error de las tarjetas de terapia: un campo obligatorio sin completar
+    // es una alerta puntual, la misma categoría que ya usan Entrada y Selección.
+    'slices/reserva-turno/ui/SelectorDeTerapia.tsx',
   ]
 
   it('ningún otro archivo usa el color terracota', () => {

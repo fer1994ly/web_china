@@ -129,10 +129,32 @@ export function Tarjeta({
 
 /**
  * Ancho maximo y canaleta lateral en un solo lugar.
+ *
  * `px-4` garantiza los 16px de margen a 360px que pide el criterio CA-07.
+ * `lectura` (por defecto) mantiene los textos en un ancho comodo de leer;
+ * `amplio` se usa donde hay grillas de tarjetas, que a 1280px se verian apretadas
+ * dentro de una sola columna de lectura.
  */
-export function Contenedor({ className, children }: { className?: string; children: ReactNode }) {
-  return <div className={cx('mx-auto w-full max-w-3xl px-4', className)}>{children}</div>
+export function Contenedor({
+  className,
+  ancho = 'lectura',
+  children,
+}: {
+  className?: string
+  ancho?: 'lectura' | 'amplio' | undefined
+  children: ReactNode
+}) {
+  return (
+    <div
+      className={cx(
+        'mx-auto w-full px-4 sm:px-6',
+        ancho === 'amplio' ? 'max-w-6xl' : 'max-w-3xl',
+        className,
+      )}
+    >
+      {children}
+    </div>
+  )
 }
 
 export function Seccion({
@@ -140,17 +162,19 @@ export function Seccion({
   copete,
   id,
   className,
+  ancho,
   children,
 }: {
   titulo: string
   copete?: string
   id?: string
   className?: string
+  ancho?: 'lectura' | 'amplio' | undefined
   children: ReactNode
 }) {
   return (
-    <section id={id} className={cx('py-10', className)}>
-      <Contenedor>
+    <section id={id} className={cx('py-10 sm:py-14', className)}>
+      <Contenedor ancho={ancho}>
         <h2 className="text-2xl text-jade sm:text-3xl">{titulo}</h2>
         {copete !== undefined && <p className="mt-2 max-w-xl text-grafito-suave">{copete}</p>}
         <div className="mt-6">{children}</div>

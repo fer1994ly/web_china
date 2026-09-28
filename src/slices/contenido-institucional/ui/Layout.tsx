@@ -3,6 +3,7 @@ import { Link, NavLink, useLocation } from 'react-router-dom'
 import { CENTRO, direccionCompleta } from '@/seed/centro'
 import { useAgenda } from '@/app/agenda-context'
 import { cx } from '@/shared/ui/cx'
+import { ScrollAlInicio, VolverArriba } from '@/shared/ui/navegacion'
 import { Contenedor } from '@/shared/ui/componentes'
 import { enlaceDeConsulta } from '@/slices/difusion-whatsapp'
 import { HorarioAtencion } from '@/slices/agenda'
@@ -41,7 +42,11 @@ function Encabezado() {
   return (
     <header className="sticky top-0 z-30 border-b border-salvia-niebla bg-lino/95 backdrop-blur-sm">
       <Contenedor className="flex items-center justify-between gap-3 py-3">
-        <Link to="/" className="flex min-w-0 items-center gap-2.5 text-jade" onClick={() => setAbierto(false)}>
+        <Link
+          to="/"
+          className="flex min-h-[44px] min-w-0 items-center gap-2.5 py-1 text-jade"
+          onClick={() => setAbierto(false)}
+        >
           <LogoQi className="h-9 w-9 shrink-0" />
           <span className="min-w-0">
             <span className="block font-titulo text-lg leading-none">{CENTRO.nombre}</span>
@@ -156,14 +161,25 @@ function PieDePagina() {
           <p>
             © {anio} {CENTRO.nombreCompleto} · {CENTRO.ciudad}, {CENTRO.pais}
           </p>
-          <nav className="flex gap-4" aria-label="Legal">
-            <Link to="/legal/aviso" className="underline hover:text-jade">
+          {/* `min-h-[44px]` en cada enlace: en el pie son objetivos táctiles chicos y
+              muy juntos, de los más difíciles de acertar con el pulgar. */}
+          <nav className="-my-2 flex flex-wrap gap-x-4" aria-label="Legal">
+            <Link
+              to="/legal/aviso"
+              className="inline-flex min-h-[44px] items-center underline hover:text-jade"
+            >
               Aviso legal
             </Link>
-            <Link to="/legal/privacidad" className="underline hover:text-jade">
+            <Link
+              to="/legal/privacidad"
+              className="inline-flex min-h-[44px] items-center underline hover:text-jade"
+            >
               Privacidad
             </Link>
-            <Link to="/admin" className="underline hover:text-jade">
+            <Link
+              to="/admin"
+              className="inline-flex min-h-[44px] items-center underline hover:text-jade"
+            >
               Panel
             </Link>
           </nav>
@@ -176,6 +192,7 @@ function PieDePagina() {
 export function Layout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col">
+      <ScrollAlInicio />
       <a
         href="#contenido"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-jade focus:px-4 focus:py-2 focus:text-blanco"
@@ -187,6 +204,7 @@ export function Layout({ children }: { children: ReactNode }) {
         {children}
       </main>
       <PieDePagina />
+      <VolverArriba />
     </div>
   )
 }

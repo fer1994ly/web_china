@@ -1,12 +1,33 @@
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Contenedor, Sello, Tarjeta } from '@/shared/ui/componentes'
+import { MigasDePan } from '@/shared/ui/navegacion'
+import { useSeo } from '@/shared/seo/useSeo'
+import { migasDePan, todosLosServicios } from '@/app/datos-estructurados'
 import { duracionLegible, precioEnGuaranies, TERAPIAS } from '@/slices/catalogo-terapias'
 import { FotoTerapia } from './FotoTerapia'
 
+const MIGAS = [{ nombre: 'Terapias', ruta: '/terapias' }]
+
 export function TerapiasPage() {
+  const datosEstructurados = useMemo(
+    () => [...todosLosServicios(), migasDePan(MIGAS)],
+    [],
+  )
+
+  useSeo({
+    titulo: 'Acupuntura, auriculoterapia y reflexología | Centro Qi Asunción',
+    descripcion:
+      'Conocé las cuatro terapias del Centro Qi en Asunción: en qué ayuda cada una, cuánto dura la ' +
+      'sesión y cuánto cuesta. Reservá online desde el celular.',
+    ruta: '/terapias',
+    datosEstructurados,
+  })
+
   return (
     <Contenedor className="py-8">
-      <h1 className="text-3xl text-jade">Terapias</h1>
+      <MigasDePan tramos={MIGAS} />
+      <h1 className="mt-4 text-3xl text-jade">Terapias</h1>
       <p className="mt-2 max-w-xl text-grafito-suave">
         Cuatro tratamientos de medicina tradicional china. Si no sabés cuál te conviene, reservá una
         acupuntura: en la primera sesión evaluamos y te orientamos.

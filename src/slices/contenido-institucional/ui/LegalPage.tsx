@@ -1,6 +1,9 @@
-import type { ReactNode } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { CENTRO, direccionCompleta } from '@/seed/centro'
 import { Aviso, Contenedor, Tarjeta } from '@/shared/ui/componentes'
+import { MigasDePan } from '@/shared/ui/navegacion'
+import { useSeo } from '@/shared/seo/useSeo'
+import { migasDePan } from '@/app/datos-estructurados'
 
 /**
  * Paginas legales con bloques estructurados.
@@ -23,15 +26,28 @@ const TEXTO_MARCADOR =
 function PaginaLegal({
   titulo,
   copete,
+  ruta,
   bloques,
 }: {
   titulo: string
   copete: string
+  ruta: string
   bloques: readonly Bloque[]
 }) {
+  const migas = useMemo(() => [{ nombre: titulo, ruta }], [titulo, ruta])
+  const datosEstructurados = useMemo(() => [migasDePan(migas)], [migas])
+
+  useSeo({
+    titulo: `${titulo} | Centro Qi`,
+    descripcion: copete,
+    ruta,
+    datosEstructurados,
+  })
+
   return (
     <Contenedor className="py-8">
-      <h1 className="text-3xl text-jade">{titulo}</h1>
+      <MigasDePan tramos={migas} />
+      <h1 className="mt-4 text-3xl text-jade">{titulo}</h1>
       <p className="mt-2 max-w-xl text-grafito-suave">{copete}</p>
 
       <div className="mt-6">
@@ -69,7 +85,8 @@ export function AvisoLegalPage() {
   return (
     <PaginaLegal
       titulo="Aviso legal"
-      copete={`Condiciones de uso del sitio de reservas de ${CENTRO.nombreCompleto}.`}
+      ruta="/legal/aviso"
+      copete={`Condiciones de uso del sitio de reservas de ${CENTRO.nombreCompleto}, centro de terapias orientales en Villa Morra, Asunción.`}
       bloques={[
         {
           titulo: 'Titular del sitio',
@@ -110,7 +127,8 @@ export function PrivacidadPage() {
   return (
     <PaginaLegal
       titulo="Política de privacidad"
-      copete="Qué datos pedimos al reservar, para qué los usamos y cómo se guardan."
+      ruta="/legal/privacidad"
+      copete="Qué datos pedimos al reservar en el Centro Qi, para qué los usamos y dónde se guardan."
       bloques={[
         {
           titulo: 'Responsable del tratamiento',

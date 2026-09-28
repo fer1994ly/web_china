@@ -21,10 +21,13 @@ async function entrarAlPanel(page: Page): Promise<void> {
   await expect(page.getByRole('heading', { name: 'Agenda del centro' })).toBeVisible()
 }
 
+/**
+ * La terapia se elige tocando una tarjeta, no desplegando un <select>.
+ * Se busca por el nombre visible para que el escenario siga leyendose igual
+ * que el criterio de aceptacion, sin depender del id interno del catalogo.
+ */
 async function elegirTerapia(page: Page, nombre: string): Promise<void> {
-  const opcion = page.locator('#terapia option', { hasText: nombre }).first()
-  const valor = await opcion.getAttribute('value')
-  await page.locator('#terapia').selectOption(valor ?? '')
+  await page.locator('[data-testid="terapia"]', { hasText: nombre }).first().click()
 }
 
 /** El texto que el destinatario realmente lee en WhatsApp. */
@@ -291,7 +294,7 @@ Then('el texto del enlace contiene la fecha y la hora del turno', async ({ page,
 
 // --- Prioridad celular: CA-07 ----------------------------------------------
 
-Given('uso una pantalla de {int} por {int}', async ({ page }, ancho: number, alto: number) => {
+Given('que uso una pantalla de {int} por {int}', async ({ page }, ancho: number, alto: number) => {
   await page.setViewportSize({ width: ancho, height: alto })
 })
 
@@ -326,4 +329,65 @@ Then('la página no desborda horizontalmente', async ({ page }) => {
     `La página desborda: scrollWidth ${medidas.scrollWidth} > ${medidas.clientWidth}. ` +
       `Elementos fuera del viewport: ${JSON.stringify(medidas.culpables)}`,
   ).toBeLessThanOrEqual(medidas.clientWidth + 1)
+})
+
+Then('ningún texto se sale de su contenedor', async ({ page }) => {
+  // Un desborde del documento lo detecta el paso anterior. Esto busca el caso mas
+  // sutil: una palabra larga (un correo, una URL) que se sale de SU tarjeta sin
+  // llegar a ensanchar la pagina, y que por eso queda cortada a la vista.
+  const cortados = await page.evaluate(() => {
+    /** `sr-only` mide 1px a proposito: existe para lectores de pantalla, no se ve. */
+    const soloParaLectores = (el: Element): boolean => {
+      const e = window.getComputedStyle(el)
+      return (
+        (e.position === 'absolute' && parseFloat(e.width) <= 1) ||
+        e.clipPath === 'inset(50%)' ||
+        el.className.toString().includes('sr-only')
+      )
+    }
+
+    const culpables: string[] = []
+    for (const el of Array.from(document.body.querySelectorAll('p, h1, h2, h3, a, dd, dt, li, span'))) {
+      if (el.children.length > 0) continue
+      if (soloParaLectores(el)) continue
+      if (el.scrollWidth > el.clientWidth + 2 && el.clientWidth > 0) {
+        const estilo = window.getComputedStyle(el)
+        // Un contenedor que desplaza a proposito no es un error.
+        if (estilo.overflowX === 'auto' || estilo.overflowX === 'scroll') continue
+        culpables.push(`${el.tagName.toLowerCase()}: "${(el.textContent ?? '').slice(0, 40)}"`)
+      }
+    }
+    return culpables.slice(0, 5)
+  })
+
+  expect(cortados, 'Texto cortado dentro de su contenedor').toEqual([])
+})
+
+Then('todos los botones miden al menos {int} píxeles de alto', async ({ page }, minimo: number) => {
+  const chicos = await page.evaluate((min) => {
+    const culpables: string[] = []
+
+    for (const el of Array.from(document.querySelectorAll('button, a[href]'))) {
+      const r = el.getBoundingClientRect()
+      if (r.height === 0 && r.width === 0) continue // oculto
+
+      const estilo = window.getComputedStyle(el)
+
+      // Fuera de alcance por diseño, no por descuido:
+      //  - `sr-only`: existe solo para lectores de pantalla.
+      //  - enlaces en prosa (display inline): WCAG 2.5.8 los exceptúa expresamente,
+      //    porque agrandarlos partiría el renglón del texto que los contiene.
+      if (estilo.position === 'absolute' && parseFloat(estilo.width) <= 1) continue
+      if (estilo.display === 'inline') continue
+
+      if (r.height < min) {
+        culpables.push(
+          `${el.tagName.toLowerCase()} "${(el.textContent ?? '').trim().slice(0, 30)}": ${Math.round(r.height)}px`,
+        )
+      }
+    }
+    return culpables.slice(0, 8)
+  }, minimo)
+
+  expect(chicos, `Objetivos táctiles menores a ${minimo}px`).toEqual([])
 })

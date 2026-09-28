@@ -31,7 +31,12 @@ export class HorarioAtencion {
   }
 
   tramosDe(fecha: FechaAgenda): ReadonlyArray<Tramo> {
-    return this.porDia[fecha.diaSemana] ?? []
+    return this.tramosDePorDiaSemana(fecha.diaSemana)
+  }
+
+  /** 0 = domingo ... 6 = sabado. Lo usa la capa de SEO para publicar el horario. */
+  tramosDePorDiaSemana(diaSemana: number): ReadonlyArray<Tramo> {
+    return this.porDia[diaSemana] ?? []
   }
 
   atiende(fecha: FechaAgenda): boolean {

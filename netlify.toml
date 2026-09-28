@@ -1,0 +1,73 @@
+# Despliegue en Netlify.
+#
+# El build corre `tsc -b && vite build && npm run seo && npm run prerender`, asi que
+# lo que se publica ya incluye sitemap.xml, robots.txt y el HTML estatico de las
+# paginas de contenido.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  # Node 24: el script de prerenderizado importa TypeScript directamente.
+  NODE_VERSION = "24"
+  # Descarga el Chromium que usa el prerenderizador. Sin esto el build falla en Netlify.
+  PLAYWRIGHT_BROWSERS_PATH = "0"
+  NPM_FLAGS = "--include=dev"
+
+# Playwright no viene con el navegador instalado: hay que pedirlo explicitamente.
+[context.production]
+  command = "npx playwright install --with-deps chromium && npm run build"
+
+[context.deploy-preview]
+  command = "npx playwright install --with-deps chromium && npm run build"
+
+[context.branch-deploy]
+  command = "npx playwright install --with-deps chromium && npm run build"
+
+# --- Redirecciones ---------------------------------------------------------
+#
+# Reserva de la SPA. Netlify sirve primero los archivos estaticos, asi que las rutas
+# prerenderizadas (/terapias/index.html y compania) ganan sobre esta regla; solo cae
+# aca lo que no tiene HTML propio: /reservar, /mi-turno, /admin y cualquier ruta
+# inexistente, que la app resuelve con su pagina 404.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# --- Cabeceras -------------------------------------------------------------
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=()"
+    # Sin backend propio: solo se permite lo que el sitio realmente usa.
+    # `connect-src 'self'` alcanza porque la agenda vive en localStorage.
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; form-action 'self'; frame-ancestors 'self'; base-uri 'self'"
+
+# Los archivos con hash en el nombre no cambian nunca: se cachean para siempre.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/img/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"
+
+# El HTML se revalida siempre: es lo que hace que un despliegue nuevo se vea al instante.
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/sitemap.xml"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
+    Content-Type = "application/xml; charset=utf-8"

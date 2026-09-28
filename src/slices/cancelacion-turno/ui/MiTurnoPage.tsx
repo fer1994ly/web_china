@@ -5,6 +5,7 @@ import { Aviso, Boton, Campo, Contenedor, Entrada, Sello, Tarjeta } from '@/shar
 import type { Reserva } from '@/slices/agenda'
 import { nombreDeTerapia } from '@/slices/catalogo-terapias'
 import { datosDelTurno, enlaceDeWhatsApp } from '@/slices/difusion-whatsapp'
+import { useSeo } from '@/shared/seo/useSeo'
 import { cancelarTurno, consultarTurno } from '../application/gestionar-turno'
 
 type Vista =
@@ -18,6 +19,14 @@ export function MiTurnoPage() {
   const [error, setError] = useState<string | null>(null)
   const [vista, setVista] = useState<Vista>({ paso: 'buscar' })
   const [confirmandoBaja, setConfirmandoBaja] = useState(false)
+
+  // `noIndexar`: muestra datos de un turno concreto. No tiene nada que hacer en un buscador.
+  useSeo({
+    titulo: 'Mi turno | Centro Qi',
+    descripcion: 'Consultá o cancelá tu turno del Centro Qi con tu código de reserva.',
+    ruta: '/mi-turno',
+    noIndexar: true,
+  })
 
   const buscar = () => {
     const r = consultarTurno(repo, codigo)
