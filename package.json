@@ -17,7 +17,8 @@
     "build:spa": "tsc -b && vite build",
     "seo": "node scripts/seo.mjs",
     "prerender": "node scripts/prerender.mjs",
-    "csp": "node scripts/verificar-csp.mjs"
+    "csp": "node scripts/verificar-csp.mjs",
+    "verificar:produccion": "node scripts/verificar-produccion.mjs"
   },
   "dependencies": {
     "react": "^19.2.8",

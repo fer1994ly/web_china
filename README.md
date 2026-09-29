@@ -43,6 +43,7 @@ Ver [Desplegar en Netlify](#desplegar-en-netlify).
 | `npm run test:e2e` | Playwright: los escenarios Gherkin, a 360px por defecto |
 | `npm run test:e2e:ui` | Lo mismo, en modo interactivo |
 | `npm run csp` | Levanta `dist/` con las cabeceras de producción y comprueba que arranque |
+| `npm run verificar:produccion` | Revisa el sitio **ya publicado**: CSP, hidratación, terceros y Core Web Vitals |
 | `npm run typecheck` | Solo TypeScript |
 | `npm run lint` | oxlint |
 | **`npm run verify`** | **Todo junto: la puerta de entrega** |
@@ -89,6 +90,7 @@ scripts/
   prerender.mjs            El HTML estático de cada página (sin navegador)
   servidor-estatico.mjs    Sirve dist/ con las reglas leídas de netlify.toml
   verificar-csp.mjs        Arranca cada ruta con la CSP de producción
+  verificar-produccion.mjs Revisa el sitio ya publicado (CSP, hidratación, Core Web Vitals)
 
 public/img/                Fotografías (ver CREDITOS.md)
 public/fonts/              Cinzel y Plus Jakarta Sans, servidas del propio dominio
@@ -287,6 +289,27 @@ renderizada— para cualquier ruta sin archivo, y siempre con 200 donde producci
 sin bloqueos de CSP **y sin desajustes de hidratación**. Corre dentro de `npm run verify`,
 porque una CSP demasiado estricta no falla en el build ni en los tests: falla en producción,
 con pantalla en blanco.
+
+### Después de publicar
+
+```bash
+npm run verificar:produccion
+```
+
+Revisa el sitio **ya desplegado**, no `dist/`. Hay cosas que solo pasan ahí, y este guion
+encontró dos:
+
+- Netlify inyectaba su insignia (un iframe con un script en línea) y la CSP la bloqueaba, así
+  que cada visita registraba una violación en la consola. Se apagó la insignia en los ajustes
+  del sitio — la CSP no se tocó, porque abrirle la mano por la insignia de un tercero sería el
+  intercambio al revés.
+- "Pretty URLs" devolvía un 301 de `/terapias` a `/terapias/`, mientras el sitemap y la
+  canónica anunciaban la URL sin barra final. Lo apaga `pretty_urls = false`.
+
+Comprueba en las siete rutas que la pantalla tenga contenido, que hidrate sin desajustes, que
+la CSP real no bloquee nada, que no se pida nada a terceros, que no se llegue por una
+redirección y que Core Web Vitals entren en los umbrales de Google. No está en
+`npm run verify` porque necesita el sitio publicado y red.
 
 ---
 
