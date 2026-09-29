@@ -1,5 +1,7 @@
 # Centro Qi · Reservas de terapias orientales
 
+**Sitio publicado: <https://gorgeous-shortbread-f7e06f.netlify.app>**
+
 Aplicación de reservas para un centro de acupuntura y terapias tradicionales chinas en
 Villa Morra, Asunción. Los pacientes reservan su sesión desde el celular, sin llamar ni esperar
 respuesta.
@@ -209,19 +211,37 @@ imposible agregar una página y que quede fuera del sitemap, o que una privada e
 
 ### Configurar el dominio
 
-El dominio real se pasa por variable de entorno. Sin ella se usa `https://centroqi.com.py`:
+El dominio se pasa por variable de entorno, porque de él salen la canónica, el `og:url`, el
+`og:image` y las URLs del `sitemap.xml`:
 
 ```bash
 VITE_SITE_URL=https://tu-dominio.com npm run build
 ```
 
-En Netlify se configura en **Site settings → Environment variables**.
+En el sitio ya está configurada con la URL de Netlify. **Cuando el centro tenga su dominio
+real hay que cambiarla ahí y volver a publicar**: el valor por defecto del código es
+`https://centroqi.com.py`, un dominio que hoy no existe, y una canónica apuntando a un
+dominio que no resuelve le dice a Google que no indexe el sitio que sí funciona.
+
+```bash
+netlify env:set VITE_SITE_URL https://centroqi.com.py   # cuando el dominio exista
+```
+
+En el panel es **Site settings → Environment variables**.
 
 ---
 
 ## Desplegar en Netlify
 
-El repositorio trae `netlify.toml` listo. Desde Netlify:
+Ya está desplegado y la rama `main` publica sola:
+
+| | |
+|---|---|
+| **Sitio** | <https://gorgeous-shortbread-f7e06f.netlify.app> |
+| **Panel** | <https://app.netlify.com/projects/gorgeous-shortbread-f7e06f> |
+| **Rama de producción** | `main` — cada push publica |
+
+El repositorio trae `netlify.toml` listo. Para montarlo de cero en otra cuenta:
 
 1. **Add new site → Import an existing project → GitHub** y elegí `web_china`.
 2. No hay nada que configurar a mano: el `netlify.toml` ya define el comando de build,
@@ -324,7 +344,7 @@ Cada criterio tiene un escenario Gherkin ejecutable. `npm run verify` los corre 
 | CA-05 | Un horario bloqueado desde el panel desaparece de la vista pública | `admin.feature` + `agenda-del-dia.test.ts` |
 | CA-06 | El botón de WhatsApp genera un `https://wa.me/` con nombre, servicio, fecha y hora codificados | `whatsapp.feature` + `enlace-whatsapp.test.ts` |
 | CA-07 | La interfaz se adapta desde 360px sin desbordes horizontales | `responsive.feature`, las 7 rutas a 360×640 |
-| CA-08 | Repo compartido con partners@kodarvia.com, README y preview | Este documento |
+| CA-08 | Repo compartido con partners@kodarvia.com, README y preview | Este documento · <https://gorgeous-shortbread-f7e06f.netlify.app> |
 
 El criterio CA-07 no se revisa a ojo: el escenario mide el desborde real en el navegador y, si
 falla, nombra el elemento concreto que se sale del viewport.

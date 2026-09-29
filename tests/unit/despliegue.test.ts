@@ -159,23 +159,16 @@ describe('Cada ruta llega a donde tiene que llegar', () => {
    * URL servida—. Además, el servidor local con el que corren los E2E responde 200
    * directo, así que producción y los tests dejaban de coincidir.
    */
-  it('el procesado de Netlify no agrega barras finales a las rutas del sitemap', () => {
-    const p = config.build.processing
-    const sinBarras = p?.skip_processing === true || p?.html?.pretty_urls === false
-    expect(
-      sinBarras,
-      'con el post-procesado activo, /terapias redirige a /terapias/ y la canónica deja de coincidir',
-    ).toBe(true)
-  })
-
   /**
-   * Netlify inyecta su insignia (un iframe con un script en línea) durante el
-   * post-procesado del HTML, y la CSP la bloquea: cada visita registraba una violación
-   * en la consola. Una CSP que salta en todas las páginas es una que nadie vuelve a
-   * mirar, y ahí se esconde la que sí importa.
+   * Tiene que ser esta clave y no `skip_processing`: probado contra el sitio publicado,
+   * con `skip_processing = true` las barras finales vuelven —el ajuste del sitio sigue
+   * diciendo `pretty_urls: true`—, así que apagar el post-procesado en bloque no alcanza.
    */
-  it('el post-procesado está apagado, así Netlify no inyecta scripts en línea', () => {
-    expect(config.build.processing?.skip_processing).toBe(true)
+  it('el procesado de Netlify no agrega barras finales a las rutas del sitemap', () => {
+    expect(
+      config.build.processing?.html?.pretty_urls,
+      'con pretty_urls activado, /terapias redirige a /terapias/ y la canónica deja de coincidir',
+    ).toBe(false)
   })
 
   it('ninguna ruta pública del inventario termina en barra', () => {

@@ -36,19 +36,15 @@
 # servidor local con el que corren los E2E: sin esto, produccion y los tests no
 # coinciden, que es el problema que este archivo viene a evitar.
 [build.processing]
-  # Se apaga TODO el post-procesado, por dos razones.
+  skip_processing = false
+
+[build.processing.html]
+  # Lo que apaga el 301 es esta clave, en concreto.
   #
-  # 1. `pretty_urls`, que es lo que hacia el 301.
-  # 2. Netlify inyecta en el HTML un iframe con su insignia (`nl-badge-frame`) y un
-  #    script en linea. La CSP —`script-src 'self'`— lo bloquea, asi que cada visita
-  #    registraba una violacion en la consola. No rompia el sitio, pero una CSP que
-  #    salta en todas las paginas es una CSP que nadie vuelve a mirar, y ahi es donde se
-  #    esconde la violacion que si importa. La alternativa era abrirle la mano a la CSP
-  #    por la insignia de un tercero, que es exactamente al reves de lo que conviene.
-  #
-  # Del resto del post-procesado no se pierde nada: la optimizacion de assets de Netlify
-  # esta discontinuada y Vite ya minifica y versiona todo.
-  skip_processing = true
+  # Probado contra el sitio publicado: con `skip_processing = true` las barras finales
+  # VUELVEN (el ajuste del sitio sigue diciendo `pretty_urls: true`), asi que no alcanza
+  # con apagar el post-procesado en bloque. Hay que decirlo aca.
+  pretty_urls = false
 
 # --- Redirecciones ---------------------------------------------------------
 #
