@@ -15,8 +15,7 @@
  *
  * Ahora las paginas se renderizan con `react-dom/server`, que es el mismo React que
  * despues las hidrata. No hay navegador, ni descarga de 150 MB, ni puerto que
- * escuchar: es una funcion de ruta a string. El build pasa de ~30 s a menos de 2 s y
- * corre igual en cualquier CI.
+ * escuchar: es una funcion de ruta a string, y corre igual en cualquier CI.
  *
  * Este archivo se compila aparte (`vite build --ssr`) y solo lo consume
  * `scripts/prerender.mjs`. El bundle del navegador no lo incluye.

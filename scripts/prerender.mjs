@@ -15,7 +15,8 @@
  * deploy imposible: el contenedor de build de Netlify no puede instalar las
  * dependencias de sistema de un Chromium headless, asi que
  * `playwright install --with-deps` —y con el todo el deploy— fallaba. Renderizar en
- * Node no necesita navegador: el build completo baja de ~30 s a menos de 2 s.
+ * Node no necesita navegador: el prerenderizado de las cinco paginas tarda ~0,4 s, build
+ * del bundle de servidor incluido.
  *
  * QUE NO SE PRERENDERIZA COMPLETO: las rutas cuyo cuerpo depende de la fecha. De
  * `/reservar` se publica solo la cabeza (metadatos y datos estructurados) con `#root`

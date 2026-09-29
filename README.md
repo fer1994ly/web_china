@@ -251,8 +251,8 @@ contenedor de build no permite instalar paquetes del sistema. El deploy fallaba 
 antes de compilar una línea.
 
 Ahora las páginas se renderizan con `react-dom/server` —el mismo React que después las
-hidrata—, que es Node y nada más. El build pasó de unos 30 segundos a menos de dos, y corre
-igual en cualquier CI. `tests/unit/despliegue.test.ts` verifica que ningún paso del build
+hidrata—, que es Node y nada más: el build completo tarda unos 3 segundos, de los cuales el
+prerenderizado son 0,4, y no hay ningún paso que pueda fallar por falta de un navegador. `tests/unit/despliegue.test.ts` verifica que ningún paso del build
 vuelva a necesitar un navegador, entre otras reglas del `netlify.toml`.
 
 ### Los dos servidores que no hay que confundir
