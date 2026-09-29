@@ -25,6 +25,16 @@ Gherkin ejecutable; `npm run verify` los corre todos.
 | Ningun texto se corta dentro de su tarjeta | `responsive.feature` |
 | Objetivos tactiles de 44px (WCAG 2.5.8) | `responsive.feature` |
 
+## Documentacion y completitud de la entrega
+
+| Requisito | Donde esta / como se verifica |
+|---|---|
+| El README explica como arrancar el proyecto y donde esta cada cosa | `README.md` → "Como arrancarlo" y "Donde esta cada cosa" |
+| Que funcionalidades estan simuladas y como se comportan | `README.md` → "Que esta simulado": persistencia, clave del panel, WhatsApp, correo y pagos, datos del centro y fotografias |
+| Datos de ejemplo precargados y como reiniciarlos | `README.md` → "Datos de ejemplo": el boton del panel y el borrado de la clave `centro-qi:agenda` en localStorage |
+| Todas las pantallas cableadas y funcionando | `navegacion.feature`: cada ruta muestra su propia pantalla, todos los enlaces internos responden, y se llega a todas desde la interfaz |
+| URL de preview publicada | <https://gorgeous-shortbread-f7e06f.netlify.app> |
+
 ## Requisitos de posicionamiento (SEO)
 
 No son criterios de Kodarvia, pero se verifican con el mismo rigor: sin esto una SPA

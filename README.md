@@ -396,6 +396,20 @@ alerta, `npm run verify` falla.
 | `/legal/aviso` | Aviso legal |
 | `/legal/privacidad` | Política de privacidad |
 
+Las siete están **cableadas y funcionando**: no hay pantallas a medio conectar, botones que
+no lleven a ninguna parte ni rutas que caigan en la vista de otra. No es una impresión, lo
+comprueba `navegacion.feature` en cada `npm run verify`:
+
+- cada ruta del inventario muestra su propia pantalla, con su `<h1>` y contenido real
+  (dos rutas con el mismo encabezado suelen ser una ruta mal cableada);
+- **todos** los enlaces internos del sitio responden — se recorren las siete pantallas, se
+  juntan sus `href` y se pide cada uno;
+- se llega a las públicas desde el encabezado (a 360px, abriendo el menú como lo abriría una
+  persona) y a las legales y al panel desde el pie;
+- el celular del pie es un enlace `wa.me` real con el número del centro.
+
+Una ruta que no existe responde 404 y muestra la pantalla de *no encontrada*.
+
 ---
 
 ## Stack

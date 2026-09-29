@@ -26,6 +26,21 @@ export class Contexto {
    */
   estadoHttp = 0
   htmlCrudo = ''
+
+  /**
+   * Lo que se aprendió al recorrer todas las rutas: encabezado, tamaño y enlaces de
+   * cada pantalla. Se recorre una vez y varios pasos leen de acá, para no visitar las
+   * siete rutas por escenario.
+   */
+  pantallas: PantallaVisitada[] = []
+}
+
+/** Lo que se aprendió de una ruta al visitarla. */
+export interface PantallaVisitada {
+  readonly ruta: string
+  readonly encabezado: string
+  readonly caracteres: number
+  readonly enlaces: readonly string[]
 }
 
 export const test = base.extend<{ ctx: Contexto }>({
