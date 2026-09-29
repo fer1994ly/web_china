@@ -24,6 +24,11 @@ export interface ConfigNetlify {
     readonly command: string
     readonly publish: string
     readonly environment: Readonly<Record<string, string>>
+    /** Post-procesado de Netlify. Ver `pretty_urls` en `netlify.toml`. */
+    readonly processing?: {
+      readonly skip_processing?: boolean
+      readonly html?: { readonly pretty_urls?: boolean }
+    }
   }
   readonly redirects: readonly Redireccion[]
   readonly headers: readonly ReglaDeCabeceras[]

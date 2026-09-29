@@ -10,3 +10,7 @@ blob-report
 !.vscode/extensions.json
 .idea
 *.tsbuildinfo
+
+# Enlace local con el sitio de Netlify (lo escribe `netlify link`): es estado de
+# la máquina, no del repositorio.
+.netlify

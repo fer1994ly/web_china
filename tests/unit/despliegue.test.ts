@@ -6,7 +6,12 @@ import {
   leerNetlifyToml,
   redireccionPara,
 } from '../../scripts/netlify-config.mjs'
-import { RUTAS, rutasPrerenderizables, rutasServidasPorLaSpa } from '@/app/rutas'
+import {
+  RUTAS,
+  rutasPrerenderizables,
+  rutasPublicas,
+  rutasServidasPorLaSpa,
+} from '@/app/rutas'
 
 /**
  * FITNESS FUNCTIONS del despliegue.
@@ -144,6 +149,30 @@ describe('Cada ruta llega a donde tiene que llegar', () => {
   it('el comodín va último: una regla después de él sería inalcanzable', () => {
     const comodin = config.redirects.findIndex((r) => r.from === '/*')
     expect(comodin).toBe(config.redirects.length - 1)
+  })
+
+  /**
+   * "Pretty URLs" viene activado en Netlify y redirige `/terapias` a `/terapias/` con un
+   * 301, porque la página vive en `terapias/index.html`. El sitemap y la canónica dicen
+   * `/terapias` sin barra final, así que cada página de contenido quedaba anunciada en
+   * una URL que redirige a otra —un salto de más por visita, y una canónica que no es la
+   * URL servida—. Además, el servidor local con el que corren los E2E responde 200
+   * directo, así que producción y los tests dejaban de coincidir.
+   */
+  it('el procesado de Netlify no agrega barras finales a las rutas del sitemap', () => {
+    expect(
+      config.build.processing?.html?.pretty_urls,
+      'con pretty_urls activado, /terapias redirige a /terapias/ y la canónica deja de coincidir',
+    ).toBe(false)
+  })
+
+  it('ninguna ruta pública del inventario termina en barra', () => {
+    // Si alguna la llevara, habría que revisar la regla de arriba: las dos decisiones
+    // tienen que contar la misma historia.
+    for (const r of rutasPublicas()) {
+      if (r.ruta === '/') continue
+      expect(r.ruta.endsWith('/'), `${r.ruta} termina en barra`).toBe(false)
+    }
   })
 })
 

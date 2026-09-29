@@ -24,6 +24,23 @@
   # descargar ~120 MB de Chromium al instalar, para un navegador que este build no abre.
   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"
 
+# --- Procesado de Netlify --------------------------------------------------
+#
+# "Pretty URLs" viene activado y redirige `/terapias` a `/terapias/` con un 301, porque
+# la pagina vive en `terapias/index.html`. Suena inofensivo y no lo es: el sitemap y la
+# etiqueta canonica dicen `/terapias` SIN barra final, asi que cada pagina de contenido
+# se anunciaba en una URL que redirige a otra. Un salto de mas en cada visita, y una
+# canonica que no es la URL que se sirve.
+#
+# Apagarlo hace que `/terapias` responda 200 directamente, que es lo que ya hacia el
+# servidor local con el que corren los E2E: sin esto, produccion y los tests no
+# coinciden, que es el problema que este archivo viene a evitar.
+[build.processing]
+  skip_processing = false
+
+[build.processing.html]
+  pretty_urls = false
+
 # --- Redirecciones ---------------------------------------------------------
 #
 # Netlify sirve primero los archivos estaticos, asi que `/`, `/terapias`, `/reservar` y
