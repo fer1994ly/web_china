@@ -16,6 +16,19 @@ export interface Terapia {
   readonly imagen: string
   /** Texto alternativo real, no decorativo. */
   readonly imagenAlt: string
+  /**
+   * Dimensiones reales del archivo, en pixeles.
+   *
+   * Van al `width`/`height` del <img> para que el navegador RESERVE el espacio antes
+   * de que la imagen llegue. Sin ellas la foto aparece de golpe y empuja el texto que
+   * tiene debajo: es la causa mas comun de Cumulative Layout Shift, la metrica de
+   * Core Web Vitals que mide justamente cuanto se mueve solo el contenido.
+   *
+   * El CSS sigue decidiendo el tamano en pantalla; estos numeros solo le dan la
+   * proporcion. Por eso son dato de la terapia y no de la hoja de estilos.
+   */
+  readonly imagenAncho: number
+  readonly imagenAlto: number
 }
 
 /** "Gs. 180.000" — separador de miles con punto, como se escribe en Paraguay. */

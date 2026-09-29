@@ -48,3 +48,24 @@ export const RUTAS: readonly RutaDelSitio[] = [
 export const rutasPublicas = (): readonly RutaDelSitio[] => RUTAS.filter((r) => r.publica)
 export const rutasPrerenderizables = (): readonly RutaDelSitio[] =>
   RUTAS.filter((r) => r.prerenderizable)
+
+/**
+ * Publicas cuyo CUERPO no se puede congelar, pero cuya cabeza si.
+ *
+ * Hoy es solo `/reservar`. Se le genera un HTML con su <title>, su descripcion, su
+ * canonica y sus datos estructurados, y `#root` vacio: un buscador o el lector de
+ * enlaces de WhatsApp leen los metadatos sin ejecutar JavaScript, y la agenda —que
+ * cambia cada dia— la arma el navegador al hidratar. Congelar tambien el cuerpo
+ * mostraria, por un instante, horarios que ya no existen.
+ */
+export const rutasSoloMetadatos = (): readonly RutaDelSitio[] =>
+  RUTAS.filter((r) => r.publica && !r.prerenderizable)
+
+/**
+ * Las que no tienen HTML propio y caen en la plantilla vacia de la SPA.
+ *
+ * Es exactamente la lista de rutas que `netlify.toml` tiene que redirigir a
+ * `/spa.html`, y `tests/unit/despliegue.test.ts` comprueba que coincidan.
+ */
+export const rutasServidasPorLaSpa = (): readonly RutaDelSitio[] =>
+  RUTAS.filter((r) => !r.publica && !r.prerenderizable)

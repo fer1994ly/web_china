@@ -1,40 +1,56 @@
 # Despliegue en Netlify.
 #
-# El build corre `tsc -b && vite build && npm run seo && npm run prerender`, asi que
-# lo que se publica ya incluye sitemap.xml, robots.txt y el HTML estatico de las
-# paginas de contenido.
+# El build es `tsc -b && vite build && npm run seo && npm run prerender`: Node puro,
+# sin navegador. Lo que se publica ya incluye sitemap.xml, robots.txt y el HTML
+# estatico de las paginas de contenido.
+#
+# ANTES ESTE ARCHIVO PEDIA UN CHROMIUM. El prerenderizado se hacia con Playwright, asi
+# que cada contexto corria `npx playwright install --with-deps chromium` antes del
+# build. Eso NO PUEDE funcionar aca: `--with-deps` es un `apt-get install` de las
+# librerias de sistema del navegador, y el contenedor de build de Netlify no permite
+# instalar paquetes del sistema. El deploy fallaba siempre, antes de compilar una sola
+# linea. El prerenderizado ahora usa `react-dom/server` y no necesita nada de esto.
 
 [build]
   command = "npm run build"
   publish = "dist"
 
 [build.environment]
-  # Node 24: el script de prerenderizado importa TypeScript directamente.
+  # Node 24: los scripts de build importan `src/app/rutas.ts` directamente y dependen
+  # de que Node quite los tipos por su cuenta.
   NODE_VERSION = "24"
-  # Descarga el Chromium que usa el prerenderizador. Sin esto el build falla en Netlify.
-  PLAYWRIGHT_BROWSERS_PATH = "0"
-  NPM_FLAGS = "--include=dev"
-
-# Playwright no viene con el navegador instalado: hay que pedirlo explicitamente.
-[context.production]
-  command = "npx playwright install --with-deps chromium && npm run build"
-
-[context.deploy-preview]
-  command = "npx playwright install --with-deps chromium && npm run build"
-
-[context.branch-deploy]
-  command = "npx playwright install --with-deps chromium && npm run build"
+  # Playwright sigue siendo dependencia de desarrollo (la usan los E2E y `npm run csp`,
+  # que corren antes de publicar, no aca). Esto evita que una version futura vuelva a
+  # descargar ~120 MB de Chromium al instalar, para un navegador que este build no abre.
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"
 
 # --- Redirecciones ---------------------------------------------------------
 #
-# Reserva de la SPA. Netlify sirve primero los archivos estaticos, asi que las rutas
-# prerenderizadas (/terapias/index.html y compania) ganan sobre esta regla; solo cae
-# aca lo que no tiene HTML propio: /reservar, /mi-turno, /admin y cualquier ruta
-# inexistente, que la app resuelve con su pagina 404.
+# Netlify sirve primero los archivos estaticos, asi que `/`, `/terapias`, `/reservar` y
+# las legales las resuelve el HTML prerenderizado y no llegan hasta aca. Solo caen en
+# estas reglas las rutas sin HTML propio.
+#
+# La reserva es `spa.html` —la plantilla con `#root` vacio— y NO `index.html`, que
+# ahora es la portada ya renderizada. Servir la portada en `/admin` obligaria a React a
+# hidratar el panel sobre el HTML de la portada: al no coincidir, descarta todo y
+# redibuja, o sea el visitante paga el prerenderizado de una pagina que no pidio.
+
+[[redirects]]
+  from = "/mi-turno"
+  to = "/spa.html"
+  status = 200
+
+[[redirects]]
+  from = "/admin"
+  to = "/spa.html"
+  status = 200
+
+# Cualquier otra cosa no existe, y se dice con un 404 de verdad. Con un 200 —como
+# estaba— Google indexa cada URL rota como si fuera una pagina mas del sitio.
 [[redirects]]
   from = "/*"
-  to = "/index.html"
-  status = 200
+  to = "/spa.html"
+  status = 404
 
 # --- Cabeceras -------------------------------------------------------------
 
@@ -47,11 +63,27 @@
     Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=()"
     # Sin backend propio: solo se permite lo que el sitio realmente usa.
     # `connect-src 'self'` alcanza porque la agenda vive en localStorage.
-    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; form-action 'self'; frame-ancestors 'self'; base-uri 'self'"
+    # Las fuentes ahora se sirven desde el propio dominio, asi que ya no hace falta
+    # abrirle la puerta a fonts.googleapis.com ni a fonts.gstatic.com.
+    # `style-src 'unsafe-inline'` sigue siendo necesario: React escribe algun `style`
+    # como atributo del elemento, y la CSP los trata como estilo en linea.
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'; form-action 'self'; frame-ancestors 'self'; base-uri 'self'"
+    # Por defecto, revalidar. Es lo que aplica a todo el HTML —incluido el de las
+    # paginas prerenderizadas, que vive en subcarpetas— y lo que hace que un deploy
+    # nuevo se vea al instante. Los archivos con hash lo sobreescriben mas abajo.
+    Cache-Control = "public, max-age=0, must-revalidate"
 
 # Los archivos con hash en el nombre no cambian nunca: se cachean para siempre.
 [[headers]]
   for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Las fuentes son versiones fijas de Google Fonts: el contenido de cada archivo no
+# cambia. Cachearlas un año es lo que hace que la segunda visita no espere la
+# tipografia, y es la mitad del beneficio de haberlas traido al propio dominio.
+[[headers]]
+  for = "/fonts/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
@@ -60,11 +92,29 @@
   [headers.values]
     Cache-Control = "public, max-age=604800"
 
-# El HTML se revalida siempre: es lo que hace que un despliegue nuevo se vea al instante.
+# La plantilla vacia de la SPA: es un detalle de implementacion, no una pagina.
 [[headers]]
-  for = "/index.html"
+  for = "/spa.html"
   [headers.values]
-    Cache-Control = "public, max-age=0, must-revalidate"
+    X-Robots-Tag = "noindex"
+
+# Las rutas privadas, por cabecera y no solo por etiqueta.
+#
+# `spa.html` ya viene con <meta name="robots" content="noindex">, pero la cabecera vale
+# aunque el buscador no mire el HTML, y Netlify las resuelve por la ruta que se pidio
+# —`/admin`— y no por el archivo que termina sirviendo, asi que la regla de `/spa.html`
+# de arriba no las alcanza. robots.txt tambien las bloquea: son tres capas para lo
+# mismo porque una pagina con la agenda del centro indexada no se puede desindexar
+# rapido.
+[[headers]]
+  for = "/admin"
+  [headers.values]
+    X-Robots-Tag = "noindex"
+
+[[headers]]
+  for = "/mi-turno"
+  [headers.values]
+    X-Robots-Tag = "noindex"
 
 [[headers]]
   for = "/sitemap.xml"

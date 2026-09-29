@@ -1,4 +1,5 @@
-import { useEffect } from 'react'
+import { createContext, useContext, useEffect } from 'react'
+import { etiquetasSeo, ID_JSONLD, type DatosSeo, type Etiqueta } from './etiquetas'
 
 /**
  * Gestion de metadatos del documento.
@@ -8,104 +9,100 @@ import { useEffect } from 'react'
  * convivirian con las de `index.html` y la pagina terminaria con dos descripciones,
  * que es peor que no tener ninguna. Aca cada etiqueta se busca y se actualiza en su
  * lugar, de modo que siempre hay exactamente una de cada.
+ *
+ * QUE ETIQUETAS van es decision de `etiquetas.ts`, que es el mismo modulo que usa el
+ * prerenderizador para escribirlas en el HTML estatico. Este archivo solo las aplica
+ * al DOM vivo.
  */
 
-export interface DatosSeo {
-  readonly titulo: string
-  /** Entre 120 y 160 caracteres: lo que se ve en el resultado de busqueda. */
-  readonly descripcion: string
-  /** Ruta absoluta del sitio, empezando con "/". */
-  readonly ruta: string
-  readonly imagen?: string
-  /** Paginas privadas o transaccionales que no deben aparecer en buscadores. */
-  readonly noIndexar?: boolean
-  /** Datos estructurados (schema.org) propios de esta pagina. */
-  readonly datosEstructurados?: readonly object[]
+export { SITIO, type DatosSeo } from './etiquetas'
+
+/**
+ * Canal por el que el prerenderizador se entera de los metadatos de la pagina.
+ *
+ * En el navegador vale `null` y no pasa nada: las etiquetas las escribe el efecto.
+ * Pero durante la compilacion no hay DOM ni efectos —`renderToString` no los corre—,
+ * asi que la pagina anuncia sus metadatos mientras se renderiza y el generador los
+ * recoge para armar el <head> del HTML estatico. Es el mismo mecanismo que usa
+ * react-helmet y la unica forma de que un <title> exista antes de que haya navegador.
+ */
+export interface SumideroSeo {
+  registrar(datos: DatosSeo): void
 }
 
-export const SITIO = {
-  /** Se configura con VITE_SITE_URL al desplegar. Ver README. */
-  url: (import.meta.env['VITE_SITE_URL'] as string | undefined)?.replace(/\/$/, '') ??
-    'https://centroqi.com.py',
-  nombre: 'Centro Qi',
-  idioma: 'es_PY',
-  imagenPorDefecto: '/img/acupuntura.jpg',
-} as const
+export const ContextoSumideroSeo = createContext<SumideroSeo | null>(null)
 
-const ID_JSONLD = 'datos-estructurados'
+function aplicarEnElDocumento(etiqueta: Etiqueta): void {
+  switch (etiqueta.tipo) {
+    case 'titulo':
+      document.title = etiqueta.texto
+      return
 
-function upsertMeta(clave: 'name' | 'property', valor: string, contenido: string): void {
-  let el = document.head.querySelector<HTMLMetaElement>(`meta[${clave}="${valor}"]`)
-  if (el === null) {
-    el = document.createElement('meta')
-    el.setAttribute(clave, valor)
-    document.head.appendChild(el)
+    case 'meta': {
+      const selector = `meta[${etiqueta.clave}="${etiqueta.valor}"]`
+      let el = document.head.querySelector<HTMLMetaElement>(selector)
+      if (el === null) {
+        el = document.createElement('meta')
+        el.setAttribute(etiqueta.clave, etiqueta.valor)
+        document.head.appendChild(el)
+      }
+      el.setAttribute('content', etiqueta.contenido)
+      return
+    }
+
+    case 'enlace': {
+      let el = document.head.querySelector<HTMLLinkElement>(`link[rel="${etiqueta.rel}"]`)
+      if (el === null) {
+        el = document.createElement('link')
+        el.setAttribute('rel', etiqueta.rel)
+        document.head.appendChild(el)
+      }
+      el.setAttribute('href', etiqueta.href)
+      return
+    }
+
+    case 'jsonld': {
+      const anterior = document.getElementById(etiqueta.id)
+      if (anterior !== null) anterior.remove()
+      const el = document.createElement('script')
+      el.id = etiqueta.id
+      el.type = 'application/ld+json'
+      el.textContent = etiqueta.json
+      document.head.appendChild(el)
+    }
   }
-  el.setAttribute('content', contenido)
-}
-
-function upsertLink(rel: string, href: string): void {
-  let el = document.head.querySelector<HTMLLinkElement>(`link[rel="${rel}"]`)
-  if (el === null) {
-    el = document.createElement('link')
-    el.setAttribute('rel', rel)
-    document.head.appendChild(el)
-  }
-  el.setAttribute('href', href)
-}
-
-function upsertJsonLd(datos: readonly object[]): void {
-  const anterior = document.getElementById(ID_JSONLD)
-  if (anterior !== null) anterior.remove()
-  if (datos.length === 0) return
-
-  const el = document.createElement('script')
-  el.id = ID_JSONLD
-  el.type = 'application/ld+json'
-  el.textContent = JSON.stringify(datos.length === 1 ? datos[0] : datos)
-  document.head.appendChild(el)
 }
 
 export function useSeo(datos: DatosSeo): void {
+  const sumidero = useContext(ContextoSumideroSeo)
+  if (sumidero !== null) sumidero.registrar(datos)
+
   const {
     titulo,
     descripcion,
     ruta,
-    imagen = SITIO.imagenPorDefecto,
+    imagen,
     noIndexar = false,
     datosEstructurados = [],
   } = datos
 
   useEffect(() => {
-    const urlCanonica = `${SITIO.url}${ruta}`
-    const urlImagen = imagen.startsWith('http') ? imagen : `${SITIO.url}${imagen}`
+    const etiquetas = etiquetasSeo({
+      titulo,
+      descripcion,
+      ruta,
+      noIndexar,
+      datosEstructurados,
+      ...(imagen === undefined ? {} : { imagen }),
+    })
 
-    document.title = titulo
+    // Paginas sin datos estructurados propios: si la anterior dejo un <script> puesto,
+    // hay que sacarlo, o el negocio de la portada viaja pegado al aviso legal.
+    const sobranteJsonLd = document.getElementById(ID_JSONLD)
+    if (sobranteJsonLd !== null && !etiquetas.some((e) => e.tipo === 'jsonld')) {
+      sobranteJsonLd.remove()
+    }
 
-    upsertMeta('name', 'description', descripcion)
-    upsertMeta(
-      'name',
-      'robots',
-      noIndexar ? 'noindex, nofollow' : 'index, follow, max-image-preview:large',
-    )
-    upsertLink('canonical', urlCanonica)
-
-    // Open Graph: lo que ve quien recibe el enlace por WhatsApp, que en Paraguay
-    // es como se comparte casi todo.
-    upsertMeta('property', 'og:type', ruta === '/' ? 'website' : 'article')
-    upsertMeta('property', 'og:site_name', SITIO.nombre)
-    upsertMeta('property', 'og:locale', SITIO.idioma)
-    upsertMeta('property', 'og:title', titulo)
-    upsertMeta('property', 'og:description', descripcion)
-    upsertMeta('property', 'og:url', urlCanonica)
-    upsertMeta('property', 'og:image', urlImagen)
-    upsertMeta('property', 'og:image:alt', descripcion)
-
-    upsertMeta('name', 'twitter:card', 'summary_large_image')
-    upsertMeta('name', 'twitter:title', titulo)
-    upsertMeta('name', 'twitter:description', descripcion)
-    upsertMeta('name', 'twitter:image', urlImagen)
-
-    upsertJsonLd(datosEstructurados)
+    for (const etiqueta of etiquetas) aplicarEnElDocumento(etiqueta)
   }, [titulo, descripcion, ruta, imagen, noIndexar, datosEstructurados])
 }

@@ -17,6 +17,15 @@ export class Contexto {
   codigo = ''
   terapia = ''
   nombre = ''
+
+  /**
+   * El HTML crudo de la última ruta pedida SIN ejecutar JavaScript, con su estado.
+   * Es lo que ve el lector de enlaces de WhatsApp, y con lo que se comprueba el
+   * prerenderizado: mirando con un navegador, la SPA ya hidrató y el HTML servido
+   * parecería completo aunque hubiera venido vacío.
+   */
+  estadoHttp = 0
+  htmlCrudo = ''
 }
 
 export const test = base.extend<{ ctx: Contexto }>({

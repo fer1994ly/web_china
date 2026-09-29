@@ -24,6 +24,8 @@ export const TERAPIAS: readonly Terapia[] = [
     precioGs: 180000,
     imagen: '/img/acupuntura.jpg',
     imagenAlt: 'Manos de la terapeuta colocando una aguja fina de acupuntura sobre la espalda de una paciente',
+    imagenAncho: 900,
+    imagenAlto: 582,
   },
   {
     id: 'auriculoterapia',
@@ -43,6 +45,8 @@ export const TERAPIAS: readonly Terapia[] = [
     precioGs: 120000,
     imagen: '/img/auriculoterapia.jpg',
     imagenAlt: 'Terapeuta trabajando sobre el pabellón auricular de una paciente recostada y relajada',
+    imagenAncho: 900,
+    imagenAlto: 1200,
   },
   {
     id: 'reflexologia',
@@ -62,6 +66,8 @@ export const TERAPIAS: readonly Terapia[] = [
     precioGs: 140000,
     imagen: '/img/reflexologia.jpg',
     imagenAlt: 'Manos aplicando presión sostenida sobre la planta del pie durante una sesión de reflexología',
+    imagenAncho: 900,
+    imagenAlto: 600,
   },
   {
     id: 'moxibustion',
@@ -82,6 +88,8 @@ export const TERAPIAS: readonly Terapia[] = [
     precioGs: 150000,
     imagen: '/img/moxibustion.jpg',
     imagenAlt: 'Terapeuta encendiendo un cono de artemisa montado sobre una aguja de acupuntura',
+    imagenAncho: 900,
+    imagenAlto: 582,
   },
 ]
 

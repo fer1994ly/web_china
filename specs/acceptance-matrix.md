@@ -38,4 +38,43 @@ le entrega HTML vacio a los buscadores y a la vista previa de WhatsApp.
 | Datos del negocio legibles por Google | `seo.feature` | "La pagina principal publica los datos del negocio para Google" |
 | Ningun titulo duplicado | `seo.feature` | "Cada titulo de pagina es distinto de los demas" |
 | Inventario de rutas coherente con sitemap y prerender | — | `tests/unit/seo.test.ts` |
+| El HTML servido ya trae el contenido, sin ejecutar JavaScript | `rendimiento.feature` | "El contenido de una pagina de contenido ya viene en el HTML" |
+| La pantalla de reserva publica sus metadatos sin congelar la agenda | `rendimiento.feature` | "La pantalla de reserva trae sus metadatos aunque su agenda la arme el navegador" |
+| Una URL inexistente responde 404 y no se indexa | `rendimiento.feature` | "Una direccion que no existe responde 404 y no se indexa como pagina" |
+| Las etiquetas del prerender y las del navegador salen de la misma lista | — | `tests/unit/pagina-estatica.test.ts` |
 | La app arranca con la CSP de produccion | — | `npm run csp` |
+
+## Rendimiento: Core Web Vitals
+
+Son las tres metricas con las que Google mide la experiencia real de una pagina y que
+usa como senal de ranking. Los umbrales son los suyos —LCP 2500 ms, CLS 0.1, INP 200 ms—
+y los fija `tests/unit/rendimiento.test.ts` para que nadie los relaje y ponga el tablero
+en verde sin arreglar nada.
+
+La medicion sale de `PerformanceObserver` en el propio navegador (ver
+`src/shared/rendimiento/`), no de una estimacion. Corre contra un servidor local, asi que
+los tiempos son mejores que en un celular con datos moviles: un fallo no dice "el sitio es
+lento en Paraguay", dice que algo se rompio tanto que ni en las mejores condiciones entra
+en rango.
+
+| Requisito | Feature | Escenario |
+|---|---|---|
+| LCP y CLS en rango bueno en las paginas publicas | `rendimiento.feature` | "Las paginas publicas entran en el rango bueno de Core Web Vitals" (4 rutas) |
+| La tipografia se sirve del propio dominio, sin hojas de terceros que bloqueen el pintado | `rendimiento.feature` | "La tipografia se sirve desde el propio dominio" |
+| El panel no viaja en el codigo que descarga un paciente | `rendimiento.feature` | "El panel del centro no viaja en el codigo que descarga un paciente" |
+| Las fotos reservan su espacio antes de cargar (CLS) | — | `imagenAncho`/`imagenAlto` en el catalogo; lo cubre el CLS de arriba |
+
+## Despliegue
+
+`netlify.toml` decide cosas que ningun test de la app puede ver y que se rompen en
+silencio: el build entero puede ser imposible de correr en Netlify y no enterarse hasta
+el deploy. `tests/unit/despliegue.test.ts` lee el archivo de verdad y lo verifica.
+
+| Regla | Como se verifica |
+|---|---|
+| Ningun paso del build necesita un navegador | `tests/unit/despliegue.test.ts` |
+| Toda ruta sin HTML propio cae en `spa.html` con 200 | `tests/unit/despliegue.test.ts` |
+| Una URL inexistente responde 404 | `tests/unit/despliegue.test.ts` + `rendimiento.feature` |
+| Las rutas privadas se sirven con `noindex` | `tests/unit/despliegue.test.ts` |
+| La CSP no necesita dominios de terceros | `tests/unit/despliegue.test.ts` |
+| Los E2E corren con las reglas reales de `netlify.toml` | `scripts/servidor-estatico.mjs`, que las lee del archivo |

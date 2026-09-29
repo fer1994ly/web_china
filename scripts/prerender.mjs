@@ -6,94 +6,91 @@
  * los lectores de enlaces NO lo ejecutan nunca. Sin esto, compartir el sitio por
  * WhatsApp —que es como se comparte casi todo en Paraguay— muestra una tarjeta vacia.
  *
- * LA SOLUCION: se levanta el build, se visita cada ruta con el navegador que ya usa
- * la suite E2E (Playwright, cero dependencias nuevas) y se guarda el HTML resultante
- * en `dist/<ruta>/index.html`. El servidor lo sirve como archivo estatico y el
- * navegador del visitante igual arranca la SPA encima.
+ * LA SOLUCION: se renderiza cada ruta con `react-dom/server` y se guarda el HTML en
+ * `dist/<ruta>/index.html`. El servidor lo sirve como archivo estatico y el navegador
+ * del visitante hidrata la SPA encima, sin volver a construir el arbol.
  *
- * QUE NO SE PRERENDERIZA: las rutas cuyo contenido depende de la fecha. Congelar la
- * agenda del dia de la compilacion dentro de un HTML seria mostrarle a alguien, por
- * un instante, horarios que ya no existen. `src/app/rutas.ts` marca cuales son.
+ * ANTES ESTO ABRIA UN CHROMIUM. Se levantaba el build en un puerto, se lo visitaba
+ * con Playwright y se guardaba el `outerHTML`. Daba el mismo resultado y hacia el
+ * deploy imposible: el contenedor de build de Netlify no puede instalar las
+ * dependencias de sistema de un Chromium headless, asi que
+ * `playwright install --with-deps` —y con el todo el deploy— fallaba. Renderizar en
+ * Node no necesita navegador: el build completo baja de ~30 s a menos de 2 s.
+ *
+ * QUE NO SE PRERENDERIZA COMPLETO: las rutas cuyo cuerpo depende de la fecha. De
+ * `/reservar` se publica solo la cabeza (metadatos y datos estructurados) con `#root`
+ * vacio; congelar su agenda seria mostrarle a alguien horarios que ya pasaron. Las
+ * privadas no generan HTML: caen en `spa.html`. `src/app/rutas.ts` decide cual es cual.
  */
-import { mkdir, writeFile } from 'node:fs/promises'
-import { createServer } from 'node:http'
-import { readFile, stat } from 'node:fs/promises'
-import { dirname, extname, join } from 'node:path'
-import { chromium } from 'playwright'
-import { RUTAS } from '../src/app/rutas.ts'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
+import { build } from 'vite'
 
 const DIST = 'dist'
-const PUERTO = 4179
+const SALIDA_SSR = 'node_modules/.tmp/ssr'
+const ENTRADA = 'src/app/entrada-servidor.tsx'
 
-const TIPOS = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript',
-  '.css': 'text/css',
-  '.svg': 'image/svg+xml',
-  '.jpg': 'image/jpeg',
-  '.png': 'image/png',
-  '.json': 'application/json',
-  '.xml': 'application/xml',
-  '.txt': 'text/plain; charset=utf-8',
-}
+/**
+ * El arbol de la app se compila aparte para poder importarlo desde Node: trae JSX,
+ * alias `@/` y `import.meta.env`, que Node no entiende por su cuenta. Es el mismo
+ * codigo que el bundle del navegador, compilado para otro destino.
+ */
+await build({
+  configFile: 'vite.config.ts',
+  logLevel: 'warn',
+  build: {
+    ssr: ENTRADA,
+    outDir: SALIDA_SSR,
+    emptyOutDir: true,
+    // El prerenderizado lee el HTML de `dist/`, que ya esta escrito: si este build
+    // lo vaciara, se perderia el bundle del navegador.
+    copyPublicDir: false,
+    minify: false,
+    target: 'node22',
+  },
+})
 
-/** Servidor estatico minimo con reserva a index.html, como hara Netlify. */
-function servidorEstatico() {
-  return createServer(async (req, res) => {
-    const url = (req.url ?? '/').split('?')[0]
-    let ruta = join(DIST, decodeURIComponent(url))
+const { htmlDeLaRuta, plantillaDeLaSpa, rutasPrerenderizables, rutasSoloMetadatos } =
+  await import(new URL(`../${SALIDA_SSR}/entrada-servidor.js`, import.meta.url).href)
 
-    try {
-      const info = await stat(ruta)
-      if (info.isDirectory()) ruta = join(ruta, 'index.html')
-    } catch {
-      ruta = join(DIST, 'index.html')
-    }
+/**
+ * La plantilla vacia que emitio Vite, ANTES de que la toquemos.
+ *
+ * Se guarda como `spa.html` porque es la reserva de las rutas sin HTML propio
+ * (`/mi-turno`, `/admin`, y cualquier URL inexistente). No se puede usar `index.html`
+ * para eso: ese archivo pasa a ser la portada ya renderizada, y servirlo en `/admin`
+ * haria que React tuviera que hidratar el panel sobre el HTML de la portada —un
+ * desajuste completo que obliga a redibujar todo en el cliente.
+ *
+ * Se le agrega el `noindex`: todo lo que cae en esta plantilla es privado o no existe.
+ */
+const plantilla = await readFile(join(DIST, 'index.html'), 'utf8')
+await writeFile(join(DIST, 'spa.html'), plantillaDeLaSpa(plantilla), 'utf8')
 
-    try {
-      const cuerpo = await readFile(ruta)
-      res.writeHead(200, { 'content-type': TIPOS[extname(ruta)] ?? 'application/octet-stream' })
-      res.end(cuerpo)
-    } catch {
-      res.writeHead(404).end('no encontrado')
-    }
-  })
-}
+const destinoDe = (ruta) =>
+  ruta === '/' ? join(DIST, 'index.html') : join(DIST, ruta.slice(1), 'index.html')
 
-const servidor = servidorEstatico()
-await new Promise((listo) => servidor.listen(PUERTO, listo))
-
-const navegador = await chromium.launch()
-const contexto = await navegador.newContext({ locale: 'es-PY', timezoneId: 'America/Asuncion' })
-const pagina = await contexto.newPage()
-
-const objetivo = RUTAS.filter((r) => r.prerenderizable)
 const generadas = []
 
-for (const { ruta } of objetivo) {
-  await pagina.goto(`http://127.0.0.1:${PUERTO}${ruta}`, { waitUntil: 'networkidle' })
-
-  // Espera a que el SEO ya haya escrito su <title>: los metadatos se aplican en un
-  // efecto, y guardar antes daria un HTML con el titulo generico de index.html.
-  await pagina.waitForFunction(() => document.title !== '' && document.title !== 'Vite + React + TS')
-
-  const html = await pagina.content()
-
-  const destino =
-    ruta === '/' ? join(DIST, 'index.html') : join(DIST, ruta.slice(1), 'index.html')
+async function generar(ruta, conCuerpo) {
+  const html = htmlDeLaRuta(plantilla, ruta, { conCuerpo })
+  const destino = destinoDe(ruta)
   await mkdir(dirname(destino), { recursive: true })
   await writeFile(destino, html, 'utf8')
-
-  generadas.push({ ruta, destino, bytes: html.length })
+  generadas.push({ ruta, destino, bytes: html.length, conCuerpo })
 }
 
-await navegador.close()
-servidor.close()
+for (const { ruta } of rutasPrerenderizables()) await generar(ruta, true)
+for (const { ruta } of rutasSoloMetadatos()) await generar(ruta, false)
+
+await rm(SALIDA_SSR, { recursive: true, force: true })
 
 for (const g of generadas) {
-  console.log(`  ${g.ruta.padEnd(20)} → ${g.destino} (${(g.bytes / 1024).toFixed(1)} kB)`)
+  const clase = g.conCuerpo ? 'completa' : 'solo cabeza'
+  console.log(`  ${g.ruta.padEnd(20)} → ${g.destino} (${(g.bytes / 1024).toFixed(1)} kB, ${clase})`)
 }
+console.log(`  ${'reserva de la SPA'.padEnd(20)} → ${join(DIST, 'spa.html')}`)
 console.log(
-  `Prerender: ${generadas.length} rutas con HTML estático. ` +
-    `${RUTAS.length - generadas.length} se sirven como SPA (contenido dependiente de la fecha o privado).`,
+  `Prerender: ${generadas.filter((g) => g.conCuerpo).length} páginas con cuerpo estático, ` +
+    `${generadas.filter((g) => !g.conCuerpo).length} con solo metadatos.`,
 )

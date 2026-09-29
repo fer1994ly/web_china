@@ -1,57 +1,49 @@
 /**
- * Levanta `dist/` con las MISMAS cabeceras que aplicara Netlify y comprueba que la
- * app arranque. Una Content-Security-Policy demasiado estricta no falla en el build
- * ni en los tests con `vite preview`: falla en produccion, con pantalla en blanco.
+ * Levanta `dist/` con las MISMAS cabeceras y redirecciones que aplicara Netlify y
+ * comprueba que la app arranque en cada ruta.
+ *
+ * POR QUE EXISTE: una Content-Security-Policy demasiado estricta no falla en el build
+ * ni en los tests con un servidor pelado. Falla en produccion, con pantalla en blanco
+ * y un mensaje en la consola que nadie esta mirando.
+ *
+ * El servidor es el compartido, que lee las reglas de `netlify.toml`: la CSP que se
+ * prueba aca es literalmente la que se va a publicar.
+ *
+ * Esto NO corre en el build de Netlify —necesita Chromium— sino en `npm run verify`,
+ * antes de subir.
  */
-import { createServer } from 'node:http'
-import { readFile, stat } from 'node:fs/promises'
-import { extname, join } from 'node:path'
 import { chromium } from 'playwright'
+import { levantar } from './servidor-estatico.mjs'
 
-const CSP = await (async () => {
-  const toml = await readFile('netlify.toml', 'utf8')
-  const m = /Content-Security-Policy = "([^"]+)"/.exec(toml)
-  if (m === null) throw new Error('No se encontró la CSP en netlify.toml')
-  return m[1]
-})()
-
-const TIPOS = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.jpg': 'image/jpeg' }
-
-const servidor = createServer(async (req, res) => {
-  const url = (req.url ?? '/').split('?')[0]
-  let ruta = join('dist', decodeURIComponent(url))
-  try {
-    const i = await stat(ruta)
-    if (i.isDirectory()) ruta = join(ruta, 'index.html')
-  } catch { ruta = join('dist', 'index.html') }
-  try {
-    const cuerpo = await readFile(ruta)
-    res.writeHead(200, {
-      'content-type': TIPOS[extname(ruta)] ?? 'application/octet-stream',
-      'content-security-policy': CSP,
-    })
-    res.end(cuerpo)
-  } catch { res.writeHead(404).end('404') }
-})
-await new Promise((l) => servidor.listen(4181, l))
+const PUERTO = 4181
+const { servidor, base } = await levantar({ puerto: PUERTO })
 
 const navegador = await chromium.launch()
 const pagina = await navegador.newPage()
 const problemas = []
-pagina.on('console', (m) => { if (m.type() === 'error') problemas.push(m.text()) })
+pagina.on('console', (m) => {
+  if (m.type() === 'error') problemas.push(m.text())
+})
 pagina.on('pageerror', (e) => problemas.push(String(e)))
 
 let fallos = 0
-for (const ruta of ['/', '/terapias', '/reservar', '/mi-turno', '/admin']) {
+for (const ruta of ['/', '/terapias', '/reservar', '/mi-turno', '/admin', '/legal/aviso']) {
   problemas.length = 0
-  await pagina.goto(`http://127.0.0.1:4181${ruta}`, { waitUntil: 'networkidle' })
+  await pagina.goto(`${base}${ruta}`, { waitUntil: 'networkidle' })
   const textoVisible = (await pagina.locator('#root').innerText()).trim().length
   const bloqueos = problemas.filter((p) => /Content Security Policy|Refused to/i.test(p))
 
-  const ok = textoVisible > 100 && bloqueos.length === 0
+  // Un desajuste de hidratacion no rompe la pantalla —React redibuja— pero anula el
+  // prerenderizado, asi que tambien tiene que fallar.
+  const hidratacion = problemas.filter((p) => /[Hh]ydrat/.test(p))
+
+  const ok = textoVisible > 100 && bloqueos.length === 0 && hidratacion.length === 0
   if (!ok) fallos += 1
-  console.log(`${ok ? 'OK ' : 'FALLA'} ${ruta.padEnd(12)} texto=${textoVisible} bloqueosCSP=${bloqueos.length}`)
-  for (const b of bloqueos.slice(0, 3)) console.log(`      ${b.slice(0, 140)}`)
+  console.log(
+    `${ok ? 'OK   ' : 'FALLA'} ${ruta.padEnd(14)} texto=${textoVisible} ` +
+      `bloqueosCSP=${bloqueos.length} hidratación=${hidratacion.length}`,
+  )
+  for (const p of [...bloqueos, ...hidratacion].slice(0, 3)) console.log(`      ${p.slice(0, 160)}`)
 }
 
 await navegador.close()

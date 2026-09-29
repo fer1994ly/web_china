@@ -1,4 +1,6 @@
 @import 'tailwindcss';
+/* Las @font-face propias, servidas desde /fonts. Ver el comentario del archivo. */
+@import './shared/styles/tipografia.css';
 
 /**
  * Paleta y tipografia del briefing. Tailwind v4 genera las utilidades a partir de

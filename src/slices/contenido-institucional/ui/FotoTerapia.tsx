@@ -52,6 +52,12 @@ export function FotoTerapia({
     <img
       src={terapia.imagen}
       alt={terapia.imagenAlt}
+      // Las dimensiones reales del archivo. El tamano en pantalla lo sigue poniendo el
+      // CSS de `className`; esto solo le da al navegador la proporcion para reservar el
+      // hueco antes de descargar la foto, y asi el texto de abajo no salta cuando llega
+      // (Cumulative Layout Shift).
+      width={terapia.imagenAncho}
+      height={terapia.imagenAlto}
       loading={prioridad ? 'eager' : 'lazy'}
       decoding={prioridad ? 'sync' : 'async'}
       fetchPriority={prioridad ? 'high' : 'auto'}

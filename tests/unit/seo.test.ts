@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { RUTAS, rutasPrerenderizables, rutasPublicas } from '@/app/rutas'
+import {
+  RUTAS,
+  rutasPrerenderizables,
+  rutasPublicas,
+  rutasServidasPorLaSpa,
+  rutasSoloMetadatos,
+} from '@/app/rutas'
 import {
   migasDePan,
   negocio,
@@ -45,6 +51,36 @@ describe('Inventario de rutas', () => {
   it('las páginas de contenido estático sí se prerenderizan', () => {
     const esperadas = ['/', '/terapias', '/legal/aviso', '/legal/privacidad']
     expect(rutasPrerenderizables().map((r) => r.ruta).sort()).toEqual(esperadas.sort())
+  })
+
+  /**
+   * De `/reservar` se publica la cabeza y no el cuerpo: los metadatos y los datos
+   * estructurados son fijos y conviene que un buscador los lea sin ejecutar
+   * JavaScript, pero su cuerpo es la agenda del día.
+   */
+  it('la pantalla de reserva publica sus metadatos aunque no su cuerpo', () => {
+    expect(rutasSoloMetadatos().map((r) => r.ruta)).toEqual(['/reservar'])
+  })
+
+  it('toda ruta pública tiene HTML propio: completo o al menos su cabeza', () => {
+    const conHtml = [...rutasPrerenderizables(), ...rutasSoloMetadatos()].map((r) => r.ruta)
+    for (const r of rutasPublicas()) {
+      expect(conHtml, `${r.ruta} se serviría sin metadatos propios`).toContain(r.ruta)
+    }
+  })
+
+  it('las que caen en la plantilla de la SPA son exactamente las privadas', () => {
+    expect(rutasServidasPorLaSpa().map((r) => r.ruta).sort()).toEqual(['/admin', '/mi-turno'])
+  })
+
+  it('ninguna ruta queda en dos categorías a la vez', () => {
+    // Las tres listas parten RUTAS: si una ruta entra en dos, el prerenderizador
+    // escribiría dos veces el mismo archivo con contenidos distintos.
+    const todas = [rutasPrerenderizables(), rutasSoloMetadatos(), rutasServidasPorLaSpa()].flatMap(
+      (lista) => lista.map((r) => r.ruta),
+    )
+    expect(new Set(todas).size).toBe(todas.length)
+    expect(todas).toHaveLength(RUTAS.length)
   })
 
   it('las rutas públicas tienen prioridad y las privadas no', () => {

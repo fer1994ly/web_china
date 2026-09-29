@@ -26,6 +26,10 @@ npm run build
 npm run preview      # http://localhost:4173
 ```
 
+`npm run preview` no es `vite preview`: sirve `dist/` con las redirecciones y cabeceras
+del `netlify.toml`, así que lo que se ve ahí es lo que va a hacer el sitio publicado.
+Ver [Desplegar en Netlify](#desplegar-en-netlify).
+
 ### Comandos
 
 | Comando | Qué hace |
@@ -33,7 +37,7 @@ npm run preview      # http://localhost:4173
 | `npm run dev` | Servidor de desarrollo |
 | `npm run build` | Tipos + build + `sitemap.xml`/`robots.txt` + prerenderizado |
 | `npm run build:spa` | Solo el bundle, sin SEO ni prerenderizado (iteración rápida) |
-| `npm run test` | Vitest: dominio, aplicación, infraestructura, arquitectura y SEO |
+| `npm run test` | Vitest: dominio, aplicación, infraestructura, arquitectura, SEO, rendimiento y despliegue |
 | `npm run test:e2e` | Playwright: los escenarios Gherkin, a 360px por defecto |
 | `npm run test:e2e:ui` | Lo mismo, en modo interactivo |
 | `npm run csp` | Levanta `dist/` con las cabeceras de producción y comprueba que arranque |
@@ -54,9 +58,14 @@ specs/                     La especificación ejecutable
 src/
   app/                     Composition root, router, contexto
     container.ts             El ÚNICO lugar que elige una implementación concreta
+    rutas.ts                 Inventario único de rutas: router, sitemap y prerender
+    entrada-servidor.tsx     Renderiza una ruta a HTML en Node, sin navegador
   shared/
     domain/                  Result, DomainError, Clock (port)
     infra/                   Driver de localStorage con sobre versionado
+    seo/                     Las etiquetas de <head> como datos, y sus dos aplicadores
+    rendimiento/             Medición de Core Web Vitals con PerformanceObserver
+    styles/                  Las @font-face propias (la tipografía no viene de Google)
     ui/                      Design system: Boton, Campo, Tarjeta, Aviso…
   slices/                  Un slice = una capacidad de negocio
     agenda/                  ★ CORE: el agregado AgendaDelDia y sus reglas
@@ -70,10 +79,17 @@ src/
   seed/                    Datos de ejemplo de Asunción y datos del centro
 
 tests/
-  unit/                    Fitness functions de arquitectura y contenido
+  unit/                    Fitness functions de arquitectura, contenido y despliegue
   e2e/steps/               Los pasos que hacen ejecutables los .feature
 
+scripts/
+  seo.mjs                  sitemap.xml y robots.txt
+  prerender.mjs            El HTML estático de cada página (sin navegador)
+  servidor-estatico.mjs    Sirve dist/ con las reglas leídas de netlify.toml
+  verificar-csp.mjs        Arranca cada ruta con la CSP de producción
+
 public/img/                Fotografías (ver CREDITOS.md)
+public/fonts/              Cinzel y Plus Jakarta Sans, servidas del propio dominio
 ```
 
 ### Cómo está organizado el código
@@ -154,22 +170,39 @@ en blanco. Por eso el build no termina en el bundle.
 
 | Pieza | Dónde |
 |---|---|
-| Título, descripción, canónica y `robots` por ruta | `src/shared/seo/useSeo.ts` |
-| Open Graph y Twitter Card | idem — es lo que se ve al compartir el enlace |
+| Qué etiquetas lleva cada página, como datos | `src/shared/seo/etiquetas.ts` — fuente única |
+| Aplicarlas al documento vivo | `src/shared/seo/useSeo.ts` |
+| Serializarlas al HTML estático | `src/shared/seo/pagina-estatica.ts` |
 | Datos estructurados schema.org | `src/app/datos-estructurados.ts` |
 | Inventario de rutas | `src/app/rutas.ts` — fuente única |
 | `sitemap.xml` y `robots.txt` | `scripts/seo.mjs`, generados en cada build |
-| Prerenderizado a HTML estático | `scripts/prerender.mjs` |
+| Prerenderizado a HTML estático | `scripts/prerender.mjs` + `src/app/entrada-servidor.tsx` |
+
+Las etiquetas se **describen una vez** y se materializan en dos lados: el navegador las
+escribe en `document.head` y el prerenderizador las serializa como texto. Con una lista por
+lado, tarde o temprano una `og:image` aparece solo en uno de los dos.
 
 **Datos estructurados publicados**: `MedicalBusiness` (dirección, teléfono, horarios derivados
 del dominio y catálogo con precios en guaraníes), `WebSite`, un `Service` por terapia,
 `BreadcrumbList` y `FAQPage`. Esto es lo que convierte un resultado de búsqueda en una ficha con
 horarios y precios en vez de dos líneas de texto.
 
-**Qué se prerenderiza y qué no.** Se genera HTML estático para `/`, `/terapias` y las dos
-páginas legales. **`/reservar` no se prerenderiza a propósito**: su contenido depende del día, y
-un HTML congelado le mostraría al visitante, por un instante, horarios que ya no existen.
-`/mi-turno` y `/admin` quedan fuera de los buscadores con `noindex` y `Disallow`.
+**Qué se prerenderiza y qué no.** Tres categorías, y `src/app/rutas.ts` decide cuál es cuál:
+
+| | Rutas | Qué se publica |
+|---|---|---|
+| Completo | `/`, `/terapias`, `/legal/aviso`, `/legal/privacidad` | Metadatos y cuerpo ya renderizado |
+| Solo la cabeza | `/reservar` | Metadatos y datos estructurados, con `#root` vacío |
+| Sin HTML propio | `/mi-turno`, `/admin` | Caen en `spa.html`, que viene con `noindex` |
+
+**Del cuerpo de `/reservar` no se publica nada a propósito**: depende del día, y un HTML
+congelado le mostraría al visitante, por un instante, horarios que ya no existen. Pero sus
+metadatos sí son fijos, y publicarlos hace que un buscador —o el lector de enlaces de
+WhatsApp— los lea sin ejecutar JavaScript. Es la página a la que viene la gente.
+
+`/mi-turno` y `/admin` quedan fuera de los buscadores por tres vías: el `noindex` escrito en
+`spa.html`, la cabecera `X-Robots-Tag` y el `Disallow` del `robots.txt`. Son tres capas para lo
+mismo porque una página con la agenda del centro indexada no se desindexa rápido.
 
 El inventario de `src/app/rutas.ts` lo consumen el sitemap y el prerenderizador, así que es
 imposible agregar una página y que quede fuera del sitemap, o que una privada entre en él.
@@ -200,18 +233,83 @@ El repositorio trae `netlify.toml` listo. Desde Netlify:
 
 Qué resuelve el `netlify.toml`:
 
-- **Build**: instala Chromium antes de compilar, porque el prerenderizador lo necesita.
-- **Redirecciones**: `/* → /index.html` con estado 200. Netlify sirve primero los archivos
-  estáticos, así que las rutas prerenderizadas ganan sobre esta regla; solo cae acá lo que no
-  tiene HTML propio.
+- **Build**: `npm run build`, y nada más. Node puro, sin navegador, unos dos segundos.
+- **Redirecciones**: lo que no tiene HTML propio (`/mi-turno`, `/admin`) cae en `/spa.html`
+  con estado 200; cualquier otra dirección cae ahí con un **404 de verdad**. Netlify sirve
+  primero los archivos estáticos, así que las páginas prerenderizadas no llegan a estas
+  reglas. La reserva es `spa.html` y no `index.html`, que ahora es la portada ya renderizada.
 - **Cabeceras**: `Content-Security-Policy`, `X-Frame-Options`, `Referrer-Policy` y
-  `Permissions-Policy`, más caché inmutable para los assets con hash y revalidación para el HTML.
+  `Permissions-Policy`, más caché inmutable para los assets con hash y las fuentes, y
+  revalidación para todo el HTML. Las rutas privadas van con `X-Robots-Tag: noindex`.
 
-`npm run csp` levanta `dist/` con esas mismas cabeceras y comprueba que las cinco rutas
-arranquen sin bloqueos. Corre dentro de `npm run verify`, porque una CSP demasiado estricta no
-falla en el build ni en los tests: falla en producción, con pantalla en blanco.
+### Por qué antes no se podía desplegar
+
+El prerenderizado abría un Chromium con Playwright, así que el build empezaba con
+`npx playwright install --with-deps chromium`. Eso **no puede funcionar en Netlify**:
+`--with-deps` es un `apt-get install` de las librerías de sistema del navegador, y el
+contenedor de build no permite instalar paquetes del sistema. El deploy fallaba siempre,
+antes de compilar una línea.
+
+Ahora las páginas se renderizan con `react-dom/server` —el mismo React que después las
+hidrata—, que es Node y nada más. El build pasó de unos 30 segundos a menos de dos, y corre
+igual en cualquier CI. `tests/unit/despliegue.test.ts` verifica que ningún paso del build
+vuelva a necesitar un navegador, entre otras reglas del `netlify.toml`.
+
+### Los dos servidores que no hay que confundir
+
+`npm run preview` **no es `vite preview`**: es `scripts/servir.mjs`, que sirve `dist/`
+aplicando las redirecciones y cabeceras leídas del `netlify.toml` de verdad. Los E2E corren
+contra él por una razón concreta: `vite preview` responde `dist/index.html` —la portada
+renderizada— para cualquier ruta sin archivo, y siempre con 200 donde producción responde
+404. Una suite verde contra esa reserva no dice nada sobre el sitio publicado.
+
+`npm run csp` usa el mismo servidor y comprueba con un navegador real que las rutas arranquen
+sin bloqueos de CSP **y sin desajustes de hidratación**. Corre dentro de `npm run verify`,
+porque una CSP demasiado estricta no falla en el build ni en los tests: falla en producción,
+con pantalla en blanco.
 
 ---
+
+## Rendimiento: Core Web Vitals
+
+Core Web Vitals son las tres métricas con las que Google mide la experiencia real de una
+página y que usa como señal de ranking:
+
+| Métrica | Qué mide | Umbral "bueno" |
+|---|---|---|
+| **LCP** | Cuánto tarda en dibujarse el elemento más grande de la primera pantalla | 2500 ms |
+| **CLS** | Cuánto se mueve el contenido solo (lo que hace que toques el botón equivocado) | 0.1 |
+| **INP** | Cuánto tarda la página en responder a un toque | 200 ms |
+
+`src/shared/rendimiento/` las mide en el navegador con `PerformanceObserver` —las mismas
+entradas que Chrome reporta al Chrome UX Report, sin dependencias nuevas ni JavaScript de
+terceros— y deja los valores en `window.__METRICAS_WEB__`. Los escenarios de
+`rendimiento.feature` los leen y fallan si se salen de rango, así que una regresión se
+descubre corriendo la suite y no en PageSpeed tres semanas después. Cuando el centro tenga
+analítica, el parámetro `alMedir` de `observarMetricasWeb` es el punto donde se engancha el
+envío.
+
+Qué se hizo para que entren en rango:
+
+- **La tipografía se sirve desde el propio dominio.** Una hoja de estilos de
+  `fonts.googleapis.com` bloquea el primer pintado y suma dos handshakes (uno para el CSS,
+  otro para los archivos) antes de que se vea una letra. Ahora los `.woff2` están en
+  `public/fonts/`, son **fuentes variables** —un archivo por familia cubre todos los pesos— y
+  `index.html` precarga los dos subconjuntos `latin`, que son los únicos que descarga una
+  página en castellano (~53 kB). De paso, la CSP ya no necesita permitir dominios de Google.
+- **Las fotos declaran sus dimensiones.** `imagenAncho`/`imagenAlto` van al `width`/`height`
+  del `<img>` para que el navegador reserve el hueco antes de descargar la imagen. Sin eso la
+  foto aparece de golpe y empuja el texto de abajo: es la causa más común de CLS. El tamaño en
+  pantalla lo sigue decidiendo el CSS.
+- **La foto del encabezado se precarga, pero solo donde se ve.** Está oculta hasta 1024px, así
+  que el `<link rel="preload">` lleva `media="(min-width: 1024px)"`: en el celular sería
+  gastarle 64 kB de datos móviles a quien nunca la va a ver.
+- **Las páginas prerenderizadas se hidratan, no se vuelven a renderizar.** `main.tsx` usa
+  `hydrateRoot` cuando `#root` ya trae HTML. Con `createRoot` React descartaba ese contenido y
+  lo reconstruía, desperdiciando el LCP que ya se había pintado.
+- **El panel del centro se carga aparte.** Es la única pantalla que ningún paciente abre nunca
+  y era el slice más grande del bundle que todos descargaban. De paso, la clave de la demo deja
+  de viajar en el archivo que se le sirve a cualquier visitante.
 
 ## Criterios de aceptación
 
@@ -258,6 +356,8 @@ Paleta y tipografías del briefing, definidas como tokens en `src/index.css`:
 | `terracota` | `#B4533C` | **Solo** cancelaciones y alertas |
 
 Tipografías: **Cinzel** para encabezados, **Plus Jakarta Sans** para interfaz y lectura.
+Las dos se sirven desde `public/fonts/` y no desde `fonts.googleapis.com`: ver
+[Rendimiento](#rendimiento-core-web-vitals).
 
 La restricción del terracota la verifica un test: si aparece fuera de una cancelación o una
 alerta, `npm run verify` falla.
@@ -280,5 +380,6 @@ alerta, `npm run verify` falla.
 
 ## Stack
 
-React 19 · TypeScript (modo estricto) · Tailwind CSS v4 · Vite · React Router ·
-Vitest · Playwright + playwright-bdd · localStorage · Netlify
+React 19 (con `react-dom/server` para el prerenderizado) · TypeScript (modo estricto) ·
+Tailwind CSS v4 · Vite · React Router · Vitest · Playwright + playwright-bdd · localStorage ·
+Netlify
